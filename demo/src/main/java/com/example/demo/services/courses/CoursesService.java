@@ -1,32 +1,35 @@
-package main.java.com.example.demo.services.courses;
+package com.example.demo.services.courses;
 
 import org.springframework.stereotype.Service;
 import org.springframework.beans.factory.annotation.Autowired;
 import java.util.List;
-import main.java.com.example.demo.models.courses;
-import main.java.com.example.demo.repositories.CoursesRepository;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import com.example.demo.entities.Course;
+import com.example.demo.repositories.CourseRepository;
+
 @Service
 public class CoursesService {
     @Autowired
-    private CoursesRepository coursesRepository;
+    private CourseRepository courseRepository;
 
-    public List<courses> getAllCourses() {
-        return courseRepository.findAll();
-    }
-    
-    public courses getCourseById(Long id) {
-        return coursesRepository.findById(id).orElse(null);
+    public Page<Course> getAllCourses(Pageable pageable) {
+        return courseRepository.findAll(pageable);
     }
 
-    public courses createCourse(courses course) {
-        return coursesRepository.save(course);
+    public Course getCourseById(Long id) {
+        return courseRepository.findById(id).orElse(null);
     }
-    
-    public courses updateCourse(Long id, courses course) {
-        return coursesRepository.save(course);
+
+    public Course createCourse(Course course) {
+        return courseRepository.save(course);
+    }
+
+    public Course updateCourse(Long id, Course course) {
+        return courseRepository.save(course);
     }
 
     public void deleteCourse(Long id) {
         courseRepository.deleteById(id);
-    }   
+    }
 }

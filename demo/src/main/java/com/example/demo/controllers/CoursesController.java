@@ -1,42 +1,49 @@
-package main.java.com.example.demo.controllers;
-
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.PutMapping;
-import org.springframework.web.bind.annotation.DeleteMapping;
+package com.example.demo.controllers;
+import org.springframework.web.bind.annotation.*;
 import org.springframework.beans.factory.annotation.Autowired;
-import main.java.com.example.demo.services.courses.CoursesService;
-import main.java.com.example.demo.models.courses;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import com.example.demo.services.courses.CoursesService;
+import com.example.demo.entities.Course;
+import com.example.demo.dtos.PagedResponse;
 import java.util.List;
-import org.springframework.beans.factory.annotation.Autowired;
-import main.java.com.example.demo.services.courses.CoursesService;
-import main.java.com.example.demo.models.courses;
+
 @RestController
-@RequestMapping("/api/v1/courses")
+@RequestMapping("/v1/courses")
 public class CoursesController {
 
-    @GetMapping("/courses")
-    public List<Course> getAllCourses() {
-        return courseService.getAllCourses();
+    @Autowired
+    private CoursesService coursesService;
+
+    @GetMapping
+    public PagedResponse<Course> getAllCourses(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        Pageable pageable = PageRequest.of(page, size);
+        Page<Course> coursePage = coursesService.getAllCourses(pageable);
+        return new PagedResponse<>(
+                coursePage.getContent(),
+                coursePage.getNumber(),
+                coursePage.getSize(),
+                coursePage.getTotalElements(),
+                coursePage.getTotalPages()
+        );
     }
-    @GetMapping("/courses/{id}")
-    public courses getCourseById(@PathVariable Long id) {
-        return courseService.getCourseById(id);
+    @GetMapping("/{id}")
+    public Course getCourseById(@PathVariable Long id) {
+        return coursesService.getCourseById(id);
     }
-    @PostMapping("/courses")
-    public courses createCourse(@RequestBody courses course) {
-        return courseService.createCourse(course);
+    @PostMapping
+    public Course createCourse(@RequestBody Course course) {
+        return coursesService.createCourse(course);
     }
-    @PutMapping("/courses/{id}")
-    public courses updateCourse(@PathVariable Long id, @RequestBody courses course) {   
-        return courseService.updateCourse(id, course);
+    @PutMapping("/{id}")
+    public Course updateCourse(@PathVariable Long id, @RequestBody Course course) {
+        return coursesService.updateCourse(id, course);
     }
-    @DeleteMapping("/courses/{id}")
+    @DeleteMapping("/{id}")
     public void deleteCourse(@PathVariable Long id) {
-        courseService.deleteCourse(id);
+        coursesService.deleteCourse(id);
     }
 }
