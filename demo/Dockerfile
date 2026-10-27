@@ -1,5 +1,5 @@
 # Stage 1: Build stage
-FROM eclipse-temurin:17-jdk-alpine AS builder
+FROM eclipse-temurin:21-jdk-alpine AS builder
 WORKDIR /app
 
 # คัดลอกไฟล์ที่จำเป็นสำหรับ Maven wrapper และ dependencies
@@ -15,7 +15,7 @@ COPY src ./src
 RUN ./mvnw clean package -DskipTests
 
 # Stage 2: Run stage
-FROM eclipse-temurin:17-jre-alpine
+FROM eclipse-temurin:21-jre-alpine
 WORKDIR /app
 
 # คัดลอกไฟล์ .jar ที่ build เสร็จแล้วจาก Stage 1
