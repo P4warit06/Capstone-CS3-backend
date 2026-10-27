@@ -33,7 +33,7 @@ jobs:
       run: ./mvnw clean verify
 
     - name: Upload Build Artifact (Optional)
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v5
       with:
         name: spring-boot-jar
         path: demo/target/*.jar
