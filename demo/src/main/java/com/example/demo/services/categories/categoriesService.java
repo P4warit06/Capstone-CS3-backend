@@ -1,5 +1,3 @@
-package com.example.demo.services.categories;
-
 import org.springframework.stereotype.Service;
 
 @Service
