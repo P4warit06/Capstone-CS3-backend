@@ -1,7 +1,11 @@
 package com.example.demo.dtos;
 
-import java.util.List;
+import lombok.Getter;
+import lombok.Setter;
 
+import java.util.List;
+@Getter
+@Setter
 public class CourseDto {
     private Long id;
     private String courseCode;

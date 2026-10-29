@@ -1,58 +1,35 @@
 package com.example.demo.entities;
 
-import java.util.List;
 import jakarta.persistence.*;
+import lombok.Getter;
+import lombok.Setter;
+import java.time.LocalDateTime;
 
+@Getter
+@Setter
 @Entity
 @Table(name = "categories")
 public class Category {
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
-    private String code;
-    private String nameTh;
-    private String nameEn;
+    @Column(name = "category_id") // ตรงกับ PK ใน SQL
+    private Integer categoryId;
 
-    @OneToMany(mappedBy = "category", cascade = CascadeType.ALL)
-    private List<Course> courses;
+    @Column(nullable = false, unique = true, length = 50)
+    private String code;
+
+    @Column(name = "category_name_th", nullable = false, length = 100)
+    private String categoryNameTh;
+
+    @Column(name = "category_name_en", nullable = false, length = 100)
+    private String categoryNameEn;
+
+    @Column(name = "created_at", nullable = false)
+    private LocalDateTime createdAt;
+
+    @Column(name = "updated_at", nullable = false)
+    private LocalDateTime updatedAt;
 
     public Category() {}
-
-    public Category(Long id, String code, String nameTh, String nameEn, List<Course> courses) {
-        this.id = id;
-        this.code = code;
-        this.nameTh = nameTh;
-        this.nameEn = nameEn;
-        this.courses = courses;
-    }
-    public Long getId() {
-        return id;
-    }
-    public String getCode() {
-        return code;
-    }
-    public String getNameTh() {
-        return nameTh;
-    }
-    public String getNameEn() {
-        return nameEn;
-    }
-    public List<Course> getCourses() {
-        return courses;
-    }
-    public void setId(Long id) {
-        this.id = id;
-    }
-    public void setCode(String code) {
-        this.code = code;
-    }
-    public void setNameTh(String nameTh) {
-        this.nameTh = nameTh;
-    }
-    public void setNameEn(String nameEn) {
-        this.nameEn = nameEn;
-    }
-    public void setCourses(List<Course> courses) {
-        this.courses = courses;
-    }
 }
