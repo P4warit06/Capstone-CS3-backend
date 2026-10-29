@@ -30,7 +30,7 @@ jobs:
       run: chmod +x ./mvnw
 
     - name: Build and Test with Maven
-      run: ./mvnw clean verify
+      run: ./mvnw clean verify -Dspring.profiles.active=test
 
     - name: Upload Build Artifact (Optional)
       uses: actions/upload-artifact@v5
