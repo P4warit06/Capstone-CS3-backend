@@ -4,7 +4,7 @@ import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
 import java.time.LocalDateTime;
-
+import java.util.List;
 @Getter
 @Setter
 @Entity
@@ -42,6 +42,12 @@ public class Course {
 
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
+
+    @OneToMany(mappedBy = "course", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<CurriculumCategoryCourse> curriculumCategoryCourses;
+
+    @OneToMany(mappedBy = "course", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<CourseTag> courseTags;
 
     public Course() {}
 }
