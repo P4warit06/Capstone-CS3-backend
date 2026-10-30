@@ -6,6 +6,7 @@ import java.util.*;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import com.example.demo.entities.Course;
+import com.example.demo.entities.Category;
 import com.example.demo.repositories.CourseRepository;
 import com.example.demo.dtos.CourseDto;
 import com.example.demo.dtos.CategoryDto;
@@ -22,11 +23,24 @@ public class CoursesService {
     }
 
     public CourseDto mapToCourseDto(Course course) {
-        // ดึง Tags และ Categories ผ่าน Repository หรือ Custom Query ในภายหลัง
-        List<String> tags = Collections.emptyList();
-        List<CategoryDto> categories = new ArrayList<>();
+        List<String> tags = course.getCourseTags() == null ? Collections.emptyList() :
+                course.getCourseTags().stream()
+                        .map(ct -> ct.getTag().getTagName())
+                        .toList();
 
-        // แปลง Integer courseId จาก Entity ให้เป็น Long เพื่อส่งให้ CourseDto
+        List<CategoryDto> categories = course.getCurriculumCategoryCourses() == null ? Collections.emptyList() :
+                course.getCurriculumCategoryCourses().stream()
+                        .map(ccc -> {
+                            Category cat = ccc.getCurriculumCategory().getCategory();
+                            return new CategoryDto(
+                                    cat.getCategoryId() != null ? cat.getCategoryId().longValue() : null,
+                                    cat.getCode(),
+                                    cat.getCategoryNameTh(),
+                                    cat.getCategoryNameEn()
+                            );
+                        })
+                        .toList();
+
         Long courseIdLong = course.getCourseId() != null ? course.getCourseId().longValue() : null;
 
         return new CourseDto(
