@@ -1,4 +1,6 @@
 package com.example.demo.controllers;
+import com.example.demo.dtos.CourseDetailDto;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
@@ -51,9 +53,10 @@ public class CoursesController {
                 coursePage.getTotalPages()
         );
     }
-    @GetMapping("/{id}")
-    public Course getCourseById(@PathVariable Long id) {
-        return coursesService.getCourseById(id);
+    @GetMapping("/{courseCode}")
+    public ResponseEntity<CourseDetailDto> getCourseByCode(@PathVariable String courseCode) {
+        CourseDetailDto course = coursesService.getCourseByCode(courseCode);
+        return ResponseEntity.ok(course);
     }
     @PostMapping
     public Course createCourse(@RequestBody Course course) {
