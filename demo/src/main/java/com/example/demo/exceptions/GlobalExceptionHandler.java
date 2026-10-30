@@ -11,7 +11,7 @@ import java.util.Map;
 public class GlobalExceptionHandler {
 
     @ExceptionHandler(CourseNotFoundException.class)
-    public ResponseEntity handleCourseNotFound(CourseNotFoundException ex) {
+    public ResponseEntity<Map> handleCourseNotFound(CourseNotFoundException ex) {
         Map<String, Object> errorResponse = Map.of(
                 "code", 404,
                 "message", "Not Found",

@@ -1,10 +1,9 @@
-package com.example.demo.repositories;
+package com.example.demo.repository;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 import java.util.List;
-import com.example.demo.entities.Course;
-import java.util.List;
+import com.example.demo.entity.Course;
 import java.util.Optional;
 
 @Repository
