@@ -1,4 +1,4 @@
-package com.example.demo.entities;
+package com.example.demo.entity;
 
 import jakarta.persistence.*;
 import java.io.Serializable;
@@ -10,6 +10,7 @@ import lombok.Setter;
 @Setter
 @Entity
 @Table(name = "curriculum_category_courses")
+
 public class CurriculumCategoryCourse {
 
     @EmbeddedId
@@ -67,5 +68,10 @@ public class CurriculumCategoryCourse {
         public int hashCode() {
             return Objects.hash(curriculumCategoryId, courseId);
         }
+    }
+
+    public Category getCategory() {
+        // TODO Auto-generated method stub
+        throw new UnsupportedOperationException("Unimplemented method 'getCategory'");
     }
 }

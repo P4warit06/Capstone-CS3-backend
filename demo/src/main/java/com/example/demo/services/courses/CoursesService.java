@@ -7,9 +7,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import java.util.*;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
-import com.example.demo.entities.Course;
-import com.example.demo.entities.Category;
-import com.example.demo.repositories.CourseRepository;
+import com.example.demo.entity.Course;
+import com.example.demo.entity.Category;
+import com.example.demo.repository.CourseRepository;
 import com.example.demo.dtos.CourseDto;
 import com.example.demo.dtos.CategoryDto;
 

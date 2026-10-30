@@ -5,9 +5,8 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import com.example.demo.services.categories.CategoriesService;
-import com.example.demo.entities.Category;
+import com.example.demo.entity.Category;
 import com.example.demo.dtos.PagedResponse;
-import java.util.List;
 
 @RestController
 @RequestMapping("/v1/categories")

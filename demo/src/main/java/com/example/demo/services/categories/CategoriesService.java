@@ -2,11 +2,10 @@ package com.example.demo.services.categories;
 
 import org.springframework.stereotype.Service;
 import org.springframework.beans.factory.annotation.Autowired;
-import java.util.List;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
-import com.example.demo.entities.Category;
-import com.example.demo.repositories.CategoriesRepository;
+import com.example.demo.entity.Category;
+import com.example.demo.repository.CategoriesRepository;
 @Service
 public class CategoriesService {
     @Autowired
