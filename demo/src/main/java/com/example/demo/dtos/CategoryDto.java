@@ -1,6 +1,6 @@
 package com.example.demo.dtos;
 
-import java.util.List;
+
 
 public class CategoryDto {
     private Long categoryId;

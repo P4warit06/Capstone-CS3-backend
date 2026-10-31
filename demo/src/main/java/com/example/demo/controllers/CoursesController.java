@@ -8,11 +8,11 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import com.example.demo.services.courses.CoursesService;
-import com.example.demo.entities.Course;
+import com.example.demo.entity.Course;
 import com.example.demo.dtos.CourseDto;
 import com.example.demo.dtos.PagedResponse;
 import java.util.Collections;
-import java.util.List;
+
 
 @RestController
 @RequestMapping("/v1/courses")
