@@ -1,6 +1,6 @@
 package com.example.demo.dtos;
 
-import com.example.demo.entities.User;
+import com.example.demo.entity.User;
 
 public class UserDto {
     private Integer userId;

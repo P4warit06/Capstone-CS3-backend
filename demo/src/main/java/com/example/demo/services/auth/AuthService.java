@@ -7,9 +7,9 @@ import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
-import com.example.demo.entities.User;
-import com.example.demo.entities.UserRole;
-import com.example.demo.repositories.UserRepository;
+import com.example.demo.entity.User;
+import com.example.demo.entity.UserRole;
+import com.example.demo.repository.UserRepository;
 
 @Service
 public class AuthService {

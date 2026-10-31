@@ -1,28 +1,48 @@
-# Stage 1: Build stage
+# ==========================================
+# Stage 1: Build Stage
+# ==========================================
 FROM eclipse-temurin:21-jdk-alpine AS builder
+
 WORKDIR /app
 
-# คัดลอกไฟล์ที่จำเป็นสำหรับ Maven wrapper และ dependencies
-COPY .mvn/ .mvn
+# Copy Maven Wrapper and configuration
+COPY .mvn/ .mvn/
 COPY mvnw pom.xml ./
+
+# Give execution permission
 RUN chmod +x mvnw
 
-# โหลด Dependencies ล่วงหน้า (ช่วยประหยัดเวลา build ครั้งต่อไป)
-RUN ./mvnw dependency:go-offline
+# Download dependencies first (Docker cache optimization)
+RUN ./mvnw dependency:go-offline -B
 
-# คัดลอก Source code และทำการ Build
+# Copy source code
 COPY src ./src
-RUN ./mvnw clean package -DskipTests
 
-# Stage 2: Run stage
+# Build Spring Boot application
+RUN ./mvnw clean package -DskipTests -B
+
+
+# ==========================================
+# Stage 2: Runtime Stage
+# ==========================================
 FROM eclipse-temurin:21-jre-alpine
+
 WORKDIR /app
 
-# คัดลอกไฟล์ .jar ที่ build เสร็จแล้วจาก Stage 1
+# Create non-root user
+RUN addgroup -S spring && adduser -S spring -G spring
+
+# Copy executable JAR from builder
 COPY --from=builder /app/target/*.jar app.jar
 
-# กำหนด Port (ค่าเริ่มต้น Spring Boot คือ 8080)
+# Set file ownership
+RUN chown spring:spring app.jar
+
+# Switch to non-root user
+USER spring
+
+# Spring Boot application port
 EXPOSE 8080
 
-# คำสั่งรันแอปพลิเคชัน
-ENTRYPOINT ["java", "-jar", "app.jar"]
+# JVM options and application startup
+ENTRYPOINT ["java", "-XX:MaxRAMPercentage=75.0", "-jar", "app.jar"]

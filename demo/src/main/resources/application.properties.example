@@ -1,0 +1,12 @@
+spring.application.name=Capstone PlanIT
+
+# PostgreSQL Database Configuration
+spring.datasource.url=${DB_URL:jdbc:postgresql://localhost:5432/Capstone}
+spring.datasource.username=${DB_USERNAME:postgres}
+spring.datasource.password=${DB_PASSWORD:your_password_here}
+spring.datasource.driver-class-name=org.postgresql.Driver
+
+# Development
+spring.jpa.hibernate.ddl-auto=validate
+spring.jpa.show-sql=true
+logging.level.org.hibernate.SQL=DEBUGazure.client-id=${AZURE_CLIENT_ID}
