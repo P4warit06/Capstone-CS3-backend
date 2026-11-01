@@ -9,4 +9,4 @@ spring.datasource.driver-class-name=org.postgresql.Driver
 # Development
 spring.jpa.hibernate.ddl-auto=validate
 spring.jpa.show-sql=true
-logging.level.org.hibernate.SQL=DEBUG
+logging.level.org.hibernate.SQL=DEBUGazure.client-id=${AZURE_CLIENT_ID}
