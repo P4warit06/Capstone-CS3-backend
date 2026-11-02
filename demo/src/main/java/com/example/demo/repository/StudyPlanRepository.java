@@ -7,6 +7,7 @@ import java.util.Optional;
 
 @Repository
 public interface StudyPlanRepository extends JpaRepository<StudyPlan, Integer> {
+    Optional<StudyPlan> findByUserId(Integer userId);
     Optional<StudyPlan> findByUserIdAndTrackTrackIdAndIsDefaultTrue(Integer userId, Integer trackId);
     Optional<StudyPlan> findByUserIdAndTrackTrackId(Integer userId, Integer trackId);
 }

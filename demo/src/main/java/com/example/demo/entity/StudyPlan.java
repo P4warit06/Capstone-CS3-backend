@@ -23,7 +23,7 @@ public class StudyPlan {
     private CurriculumVersion curriculumVersion;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "track_id", nullable = false)
+    @JoinColumn(name = "track_id")
     private Track track;
 
     @Column(name = "is_default", nullable = false)
