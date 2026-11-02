@@ -129,7 +129,7 @@ public class TracksService {
                 .filter(t -> !t.getTrackId().equals(id) && t.getCurriculumVersion().equals(cv))
                 .map(t -> {
                     String[] parsed = parseTrackName(t.getTrackName());
-                    return new RelatedTrackDto(t.getTrackId(), "", parsed[0]);
+                    return new RelatedTrackDto(t.getTrackId(), "", parsed[0], parsed[1]);
                 })
                 .collect(Collectors.toList());
         detail.setRelatedTracks(related);

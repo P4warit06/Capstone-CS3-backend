@@ -9,12 +9,14 @@ public class RelatedTrackDto {
     private Integer id;
     private String code;
     private String nameTh;
+    private String nameEn;
 
     public RelatedTrackDto() {}
 
-    public RelatedTrackDto(Integer id, String code, String nameTh) {
+    public RelatedTrackDto(Integer id, String code, String nameTh, String nameEn) {
         this.id = id;
         this.code = code;
         this.nameTh = nameTh;
+        this.nameEn = nameEn;
     }
 }
