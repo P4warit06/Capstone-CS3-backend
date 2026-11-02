@@ -34,6 +34,9 @@ public class TrackCourse {
     @Column(name = "standard_semester", nullable = false)
     private Integer standardSemester;
 
+    @Column(name = "choice_group")
+    private Integer choiceGroup;
+
     public TrackCourse() {}
 
     @Getter

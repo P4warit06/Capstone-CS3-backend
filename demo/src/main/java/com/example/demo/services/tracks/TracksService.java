@@ -28,25 +28,24 @@ public class TracksService {
     @Autowired
     private CurriculumCategoryRepository curriculumCategoryRepository;
 
+    @Autowired
+    private RelatedTrackRepository relatedTrackRepository;
+
+    
+
     @Transactional(readOnly = true)
     public List<TrackDto> getAllTracks(Integer userId) {
         List<Track> tracks = trackRepository.findAll();
         return tracks.stream().map(track -> {
-            Boolean isUserTrack = false;
-            if (userId != null) {
-                isUserTrack = studyPlanRepository.findByUserIdAndTrackTrackId(userId, track.getTrackId()).isPresent();
-            }
-
-            String[] parsedNames = parseTrackName(track.getTrackName());
+            TrackGroup group = track.getGroup();
+            TrackGroupDto groupDto = group != null ? new TrackGroupDto(group.getTrackGroupId(), group.getNameTh(), group.getNameEn()) : null;
 
             return new TrackDto(
                     track.getTrackId(),
-                    "", // Default to empty string instead of null
-                    parsedNames[0],
-                    parsedNames[1],
-                    track.getDescription(),
-                    isUserTrack,
-                    new TrackGroupDto(0, "ทั่วไป", "General") // Default group instead of null
+                    track.getTrackNameTh(),
+                    track.getTrackNameEn(),
+                    track.getDescriptionTh(),
+                    groupDto
             );
         }).collect(Collectors.toList());
     }
@@ -58,21 +57,14 @@ public class TracksService {
 
         TrackDetailDto detail = new TrackDetailDto();
         detail.setId(track.getTrackId());
-        detail.setCode(""); // Default to empty string instead of null
+        detail.setNameTh(track.getTrackNameTh());
+        detail.setNameEn(track.getTrackNameEn());
+        detail.setDescription(track.getDescriptionTh());
 
-        String[] parsedNames = parseTrackName(track.getTrackName());
-        detail.setNameTh(parsedNames[0]);
-        detail.setNameEn(parsedNames[1]);
-        detail.setDescription(track.getDescription());
-
-        Boolean isUserTrack = false;
-        if (userId != null) {
-            isUserTrack = studyPlanRepository.findByUserIdAndTrackTrackId(userId, track.getTrackId()).isPresent();
-        }
-        detail.setIsUserTrack(isUserTrack);
         detail.setTotalCredits(track.getRequiredCredits());
 
-        detail.setGroup(new TrackGroupDto(0, "ทั่วไป", "General")); // Default group instead of null
+        TrackGroup group = track.getGroup();
+        detail.setGroup(group != null ? new TrackGroupDto(group.getTrackGroupId(), group.getNameTh(), group.getNameEn()) : null);
 
         // Semesters & Courses
         List<TrackCourse> trackCourses = trackCourseRepository.findByTrackTrackId(track.getTrackId());
@@ -94,6 +86,10 @@ public class TracksService {
                             .map(tc -> {
                                 Course course = tc.getCourse();
                                 Double rating = reviewRepository.getAverageRatingByCourseId(course.getCourseId());
+                                
+                                // แปลง Integer เป็น String ก่อนส่งให้ TrackCourseDto
+                                String choiceGroupStr = tc.getChoiceGroup() != null ? String.valueOf(tc.getChoiceGroup()) : null;
+
                                 return new TrackCourseDto(
                                         course.getCourseId(),
                                         course.getCourseCode(),
@@ -101,7 +97,8 @@ public class TracksService {
                                         course.getNameEn(),
                                         course.getCredits(),
                                         tc.getIsRequired(),
-                                        rating
+                                        rating,
+                                        tc.getChoiceGroup()
                                 );
                             }).collect(Collectors.toList());
 
@@ -117,6 +114,7 @@ public class TracksService {
         CurriculumVersion cv = track.getCurriculumVersion();
         List<CategorySummaryDto> catSummaries = curriculumCategoryRepository.findByCurriculumVersionCurriculumVersionId(cv.getCurriculumVersionId())
                 .stream()
+                .sorted(Comparator.comparing(CurriculumCategory::getSortOrder, Comparator.nullsLast(Comparator.naturalOrder())))
                 .map(cc -> {
                     Category cat = cc.getCategory();
                     return new CategorySummaryDto(cat.getCode(), cat.getCategoryNameTh(), cc.getRequiredCredits());
@@ -125,29 +123,15 @@ public class TracksService {
         detail.setCurriculumSummary(new CurriculumSummaryDto(cv.getVersionName(), cv.getTotalCredits(), catSummaries));
 
         // Related Tracks
-        List<RelatedTrackDto> related = trackRepository.findAll().stream()
-                .filter(t -> !t.getTrackId().equals(id) && t.getCurriculumVersion().equals(cv))
-                .map(t -> {
-                    String[] parsed = parseTrackName(t.getTrackName());
-                    return new RelatedTrackDto(t.getTrackId(), "", parsed[0], parsed[1]);
+        List<RelatedTrack> relatedEntities = relatedTrackRepository.findByTrackTrackId(track.getTrackId());
+        List<RelatedTrackDto> related = relatedEntities.stream()
+                .map(rt -> {
+                    Track rtTrack = rt.getRelatedTrack();
+                    return new RelatedTrackDto(rtTrack.getTrackId(), "", rtTrack.getTrackNameTh(), rtTrack.getTrackNameEn());
                 })
                 .collect(Collectors.toList());
         detail.setRelatedTracks(related);
 
         return detail;
-    }
-
-    private String[] parseTrackName(String trackName) {
-        if (trackName == null) return new String[]{"", ""};
-        // Remove leading "N " (e.g., "1 นักพัฒนาฟรอนต์เอนด์ (Frontend Developer)")
-        String cleaned = trackName.replaceFirst("^\\d+\\s+", "");
-        // Split by " ("
-        int bracketIndex = cleaned.indexOf(" (");
-        if (bracketIndex != -1) {
-            String nameTh = cleaned.substring(0, bracketIndex);
-            String nameEn = cleaned.substring(bracketIndex + 2, cleaned.length() - 1);
-            return new String[]{nameTh, nameEn};
-        }
-        return new String[]{cleaned, ""};
     }
 }

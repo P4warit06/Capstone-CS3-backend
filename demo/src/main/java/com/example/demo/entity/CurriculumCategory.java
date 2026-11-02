@@ -30,7 +30,10 @@ public class CurriculumCategory {
 
     @Column(name = "required_credits", nullable = false)
     private Integer requiredCredits;
-    
+
+    @Column(name = "sort_order")
+    private Integer sortOrder;
+
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
 

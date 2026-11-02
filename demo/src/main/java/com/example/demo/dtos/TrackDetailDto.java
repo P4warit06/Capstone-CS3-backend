@@ -8,11 +8,9 @@ import java.util.List;
 @Setter
 public class TrackDetailDto {
     private Integer id;
-    private String code;
     private String nameTh;
     private String nameEn;
     private String description;
-    private Boolean isUserTrack;
     private Integer totalCredits;
     private TrackGroupDto group;
     private List<SemesterDto> semesters;

@@ -5,8 +5,9 @@ Backend REST API for planIT, an IT Curriculum Planner & Course Review Platform f
 
 The backend provides APIs for course management, study planning, curriculum tracks, and course reviews. It connects to PostgreSQL for persistent data storage and Redis for caching and other supporting operations.
 
-Frontend repository: Capstone-CS3-frontend
-
+Frontend repository: [Capstone-CS3-frontend](https://github.com/Benyaporn54/Capstone-CS3-frontend)
+Database repository : [Capstone-CS3-database](https://github.com/TaninGit/Capstone-CS3-database)
+API Contract to Frontend : [API-CONTRACT](https://app.notion.com/p/API-Contract-Specification-CapstoneProj-40695d0afa2680f89e91db133bc06df6?source=copy_link)
 ## Tech Stack
 
 * Java 21
