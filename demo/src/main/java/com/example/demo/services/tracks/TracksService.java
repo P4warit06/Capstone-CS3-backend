@@ -60,17 +60,14 @@ public class TracksService {
         detail.setNameTh(track.getTrackNameTh());
         detail.setNameEn(track.getTrackNameEn());
         detail.setDescription(track.getDescriptionTh());
-
+        detail.setTotalCredits(track.getRequiredCredits());
         TrackGroup group = track.getGroup();
         detail.setGroup(group != null ? new TrackGroupDto(group.getTrackGroupId(), group.getNameTh(), group.getNameEn()) : null);
 
         // Semesters & Courses
         List<TrackCourse> trackCourses = trackCourseRepository.findByTrackTrackId(track.getTrackId());
 
-        int totalCreditsSum = trackCourses.stream()
-                .mapToInt(tc -> tc.getCourse().getCredits())
-                .sum();
-        detail.setTotalCredits(totalCreditsSum);
+       
 
         Map<String, List<TrackCourse>> grouped = trackCourses.stream()
                 .collect(Collectors.groupingBy(tc -> tc.getStandardYear() + "-" + tc.getStandardSemester()));
