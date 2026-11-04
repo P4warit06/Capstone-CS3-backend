@@ -3,6 +3,7 @@ package com.example.demo.controllers;
 import com.example.demo.dtos.CreatePlanRequestDto;
 import com.example.demo.dtos.PlanDto;
 import com.example.demo.dtos.PlanListResponseDto;
+import com.example.demo.dtos.StudyPlanDetailDto;
 import com.example.demo.services.planners.StudyPlanService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -10,6 +11,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -25,6 +27,13 @@ public class StudyPlanController {
     public ResponseEntity<PlanListResponseDto> getMyPlans(@AuthenticationPrincipal Jwt token) {
         PlanListResponseDto response = studyPlanService.getUserPlansByEmail(token.getSubject());
         return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/{id}")
+    public ResponseEntity<StudyPlanDetailDto> getPlan(
+            @AuthenticationPrincipal Jwt token,
+            @PathVariable Integer id) {
+        return ResponseEntity.ok(studyPlanService.getPlanById(token.getSubject(), id));
     }
 
     @PostMapping

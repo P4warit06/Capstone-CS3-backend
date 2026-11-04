@@ -4,12 +4,24 @@ import com.example.demo.dtos.CreatePlanRequestDto;
 import com.example.demo.dtos.PlanDto;
 import com.example.demo.dtos.PlanListResponseDto;
 import com.example.demo.dtos.PlanTrackDto;
+import com.example.demo.dtos.StudyPlanDetailDto;
+import com.example.demo.entity.Category;
+import com.example.demo.entity.Course;
+import com.example.demo.entity.CurriculumCategoryCourse;
+import com.example.demo.entity.RegistrarEnrollment;
 import com.example.demo.entity.RegistrarStudent;
 import com.example.demo.entity.StudyPlan;
+import com.example.demo.entity.StudyPlanCourse;
+import com.example.demo.entity.TrackCourse;
 import com.example.demo.entity.User;
 import com.example.demo.exceptions.PlanLimitExceededException;
+import com.example.demo.repository.CurriculumCategoryCourseRepository;
+import com.example.demo.repository.CourseRepository;
+import com.example.demo.repository.RegistrarEnrollmentRepository;
 import com.example.demo.repository.RegistrarStudentRepository;
+import com.example.demo.repository.StudyPlanCourseRepository;
 import com.example.demo.repository.StudyPlanRepository;
+import com.example.demo.repository.TrackCourseRepository;
 import com.example.demo.repository.TrackRepository;
 import com.example.demo.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -18,7 +30,14 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Service
@@ -29,6 +48,240 @@ public class StudyPlanService {
     private final RegistrarStudentRepository registrarStudentRepository;
     private final UserRepository userRepository;
     private final TrackRepository trackRepository;
+    private final CourseRepository courseRepository;
+    private final CurriculumCategoryCourseRepository curriculumCategoryCourseRepository;
+    private final TrackCourseRepository trackCourseRepository;
+    private final StudyPlanCourseRepository studyPlanCourseRepository;
+    private final RegistrarEnrollmentRepository registrarEnrollmentRepository;
+
+    @Transactional(readOnly = true)
+    public StudyPlanDetailDto getPlanById(String email, Integer planId) {
+        User currentUser = findUserByEmail(email);
+        StudyPlan plan = studyPlanRepository.findOwnedPlanById(planId, currentUser.getId())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Study plan not found"));
+        RegistrarStudent student = findRegistrarStudent(currentUser);
+
+        Integer curriculumVersionId = plan.getCurriculumVersion().getCurriculumVersionId();
+        List<CurriculumCategoryCourse> allCurriculumCourses = curriculumCategoryCourseRepository
+                .findByCurriculumCategoryCurriculumVersionCurriculumVersionId(curriculumVersionId);
+        List<CurriculumCategoryCourse> curriculumCourses = allCurriculumCourses.stream()
+                .filter(CurriculumCategoryCourse::getIsRequired)
+                .toList();
+        List<TrackCourse> trackCourses = plan.getTrack() == null
+                ? List.of()
+                : trackCourseRepository.findByTrackTrackIdAndIsRequiredTrue(plan.getTrack().getTrackId());
+        List<StudyPlanCourse> userCourses = studyPlanCourseRepository.findByStudyPlanStudyPlanId(planId);
+        List<RegistrarEnrollment> enrollments = registrarEnrollmentRepository.findByStudentId(student.getStudentId());
+
+        Map<Integer, Category> categoriesByCourse = new HashMap<>();
+        Map<String, Category> categoriesByCode = new HashMap<>();
+        for (CurriculumCategoryCourse mapping : allCurriculumCourses) {
+            Category category = mapping.getCurriculumCategory().getCategory();
+            categoriesByCourse.putIfAbsent(mapping.getCourse().getCourseId(), category);
+            categoriesByCode.put(category.getCode(), category);
+        }
+
+        Map<Integer, List<RegistrarEnrollment>> enrollmentsByCourse = enrollments.stream()
+                .collect(Collectors.groupingBy(RegistrarEnrollment::getCourseId));
+        Map<PlacementKey, StudyPlanDetailDto.Course> placements = new HashMap<>();
+        Set<Integer> representedEnrollmentIds = new HashSet<>();
+        Set<Integer> requiredCourseIds = new HashSet<>();
+
+        Category majorAdvanced = categoriesByCode.get("MAJOR_ADVANCED");
+        for (CurriculumCategoryCourse mapping : curriculumCourses) {
+            Course course = mapping.getCourse();
+            if (!requiredCourseIds.add(course.getCourseId())) {
+                continue;
+            }
+            addRequiredCourse(placements, representedEnrollmentIds, enrollmentsByCourse, course,
+                    categoriesByCourse.get(course.getCourseId()), null, mapping.getStandardYear(),
+                    mapping.getStandardSemester(), student);
+        }
+        for (TrackCourse mapping : trackCourses) {
+            Course course = mapping.getCourse();
+            if (!requiredCourseIds.add(course.getCourseId())) {
+                continue;
+            }
+            addRequiredCourse(placements, representedEnrollmentIds, enrollmentsByCourse, course,
+                    majorAdvanced, plan.getTrack().getTrackNameEn(), mapping.getStandardYear(),
+                    mapping.getStandardSemester(), student);
+        }
+
+        for (StudyPlanCourse plannedCourse : userCourses) {
+            Course course = plannedCourse.getCourse();
+            int year = plannedCourse.getStudyYear();
+            int semester = plannedCourse.getStudySemester();
+            List<RegistrarEnrollment> matchingEnrollments = enrollmentsByCourse
+                    .getOrDefault(course.getCourseId(), List.of()).stream()
+                    .filter(enrollment -> enrollmentStudyYear(enrollment, student) == year
+                            && enrollment.getSemester() == semester)
+                    .toList();
+            String status = matchingEnrollments.isEmpty()
+                    ? (isPast(year, semester, student) ? "not_registered" : "planned")
+                    : matchingEnrollments.getFirst().getStatus();
+            matchingEnrollments.forEach(enrollment -> representedEnrollmentIds.add(enrollment.getEnrollmentId()));
+            placements.putIfAbsent(new PlacementKey(course.getCourseId(), year, semester),
+                    toCourseDto(course, "user", false, categoriesByCourse.get(course.getCourseId()), status,
+                            plannedCourse.getStudyPlanCourseId(), null));
+        }
+
+        for (RegistrarEnrollment enrollment : enrollments) {
+            if (representedEnrollmentIds.contains(enrollment.getEnrollmentId())) {
+                continue;
+            }
+            int year = enrollmentStudyYear(enrollment, student);
+            Course course = findCourseForEnrollment(enrollment, curriculumCourses, trackCourses, userCourses);
+            placements.putIfAbsent(new PlacementKey(course.getCourseId(), year, enrollment.getSemester()),
+                    toCourseDto(course, "registrar", false, categoriesByCourse.get(course.getCourseId()),
+                            enrollment.getStatus(), null, null));
+        }
+
+        int maxYear = Math.max(4, placements.keySet().stream().mapToInt(PlacementKey::year).max().orElse(4));
+        List<StudyPlanDetailDto.Year> years = new ArrayList<>();
+        for (int year = 1; year <= maxYear; year++) {
+            List<StudyPlanDetailDto.Semester> semesters = new ArrayList<>();
+            int yearCredits = 0;
+            for (int semester = 1; semester <= 2; semester++) {
+                final int currentYear = year;
+                final int currentSemester = semester;
+                List<StudyPlanDetailDto.Course> courses = placements.entrySet().stream()
+                        .filter(entry -> entry.getKey().year() == currentYear
+                                && entry.getKey().semester() == currentSemester)
+                        .map(Map.Entry::getValue)
+                        .sorted(Comparator.comparing(StudyPlanDetailDto.Course::getLocked).reversed()
+                                .thenComparing(StudyPlanDetailDto.Course::getCourseCode))
+                        .toList();
+                int credits = courses.stream()
+                        .filter(course -> !"withdrawn".equals(course.getStatus())
+                                && !"not_registered".equals(course.getStatus()))
+                        .mapToInt(StudyPlanDetailDto.Course::getCredits)
+                        .sum();
+                yearCredits += credits;
+                semesters.add(StudyPlanDetailDto.Semester.builder()
+                        .semester(semester)
+                        .status(getTermStatus(year, semester, student))
+                        .totalCredits(credits)
+                        .courses(courses)
+                        .build());
+            }
+            years.add(StudyPlanDetailDto.Year.builder()
+                    .year(year)
+                    .academicYear(student.getAdmissionYear() + year - 1)
+                    .status(year < student.getCurrentYear() ? "completed"
+                            : Objects.equals(year, student.getCurrentYear()) ? "current" : "upcoming")
+                    .totalCredits(yearCredits)
+                    .semesters(semesters)
+                    .build());
+        }
+
+        PlanTrackDto track = plan.getTrack() == null ? null : PlanTrackDto.builder()
+                .id(plan.getTrack().getTrackId())
+                .nameTh(plan.getTrack().getTrackNameTh())
+                .nameEn(plan.getTrack().getTrackNameEn())
+                .build();
+
+        return StudyPlanDetailDto.builder()
+                .studyPlanId(plan.getStudyPlanId())
+                .planName(plan.getPlanName())
+                .isDefault(plan.getIsDefault())
+                .student(StudyPlanDetailDto.Student.builder()
+                        .studentId(student.getStudentId())
+                        .admissionYear(student.getAdmissionYear())
+                        .currentYear(student.getCurrentYear())
+                        .currentSemester(student.getCurrentSemester())
+                        .build())
+                .curriculum(StudyPlanDetailDto.Curriculum.builder()
+                        .id(curriculumVersionId)
+                        .name(plan.getCurriculumVersion().getVersionName())
+                        .totalCredits(plan.getCurriculumVersion().getTotalCredits())
+                        .build())
+                .track(track)
+                .years(years)
+                .build();
+    }
+
+    private void addRequiredCourse(Map<PlacementKey, StudyPlanDetailDto.Course> placements,
+                                   Set<Integer> representedEnrollmentIds,
+                                   Map<Integer, List<RegistrarEnrollment>> enrollmentsByCourse,
+                                   Course course, Category category, String trackLabel,
+                                   Integer standardYear, Integer standardSemester, RegistrarStudent student) {
+        List<RegistrarEnrollment> courseEnrollments = enrollmentsByCourse
+                .getOrDefault(course.getCourseId(), List.of());
+        if (!courseEnrollments.isEmpty()) {
+            for (RegistrarEnrollment enrollment : courseEnrollments) {
+                int year = enrollmentStudyYear(enrollment, student);
+                representedEnrollmentIds.add(enrollment.getEnrollmentId());
+                placements.putIfAbsent(new PlacementKey(course.getCourseId(), year, enrollment.getSemester()),
+                        toCourseDto(course, trackLabel == null ? "curriculum" : "track", true,
+                                category, enrollment.getStatus(), null, trackLabel));
+            }
+            return;
+        }
+        if (standardYear == null || standardYear < 1 || standardSemester == null
+                || standardSemester < 1 || standardSemester > 2) {
+            throw new IllegalStateException("Required course has no valid standard study term: " + course.getCourseCode());
+        }
+        String status = isPast(standardYear, standardSemester, student) ? "not_registered" : "planned";
+        placements.putIfAbsent(new PlacementKey(course.getCourseId(), standardYear, standardSemester),
+                toCourseDto(course, trackLabel == null ? "curriculum" : "track", true,
+                        category, status, null, trackLabel));
+    }
+
+    private StudyPlanDetailDto.Course toCourseDto(Course course, String source, boolean locked,
+                                                   Category category, String status, Integer planCourseId,
+                                                   String trackLabel) {
+        String categoryCode = category == null ? "FREE_ELECTIVE" : category.getCode();
+        String categoryLabel = trackLabel != null ? trackLabel
+                : category == null ? "เลือกเสรี" : category.getCategoryNameTh();
+        return StudyPlanDetailDto.Course.builder()
+                .courseId(course.getCourseId())
+                .courseCode(course.getCourseCode())
+                .nameTh(course.getNameTh())
+                .nameEn(course.getNameEn())
+                .credits(course.getCredits())
+                .source(source)
+                .locked(locked)
+                .category(StudyPlanDetailDto.CourseCategory.builder()
+                        .code(trackLabel == null ? categoryCode : "MAJOR_ADVANCED")
+                        .label(categoryLabel)
+                        .build())
+                .status(status)
+                .studyPlanCourseId(planCourseId)
+                .build();
+    }
+
+    private Course findCourseForEnrollment(RegistrarEnrollment enrollment,
+                                            List<CurriculumCategoryCourse> curriculumCourses,
+                                            List<TrackCourse> trackCourses,
+                                            List<StudyPlanCourse> userCourses) {
+        return curriculumCourses.stream().map(CurriculumCategoryCourse::getCourse)
+                .filter(course -> course.getCourseId().equals(enrollment.getCourseId())).findFirst()
+                .or(() -> trackCourses.stream().map(TrackCourse::getCourse)
+                        .filter(course -> course.getCourseId().equals(enrollment.getCourseId())).findFirst())
+                .or(() -> userCourses.stream().map(StudyPlanCourse::getCourse)
+                        .filter(course -> course.getCourseId().equals(enrollment.getCourseId())).findFirst())
+                .or(() -> courseRepository.findByCourseId(enrollment.getCourseId()))
+                .orElseThrow(() -> new IllegalStateException("Enrollment course was not loaded: " + enrollment.getCourseId()));
+    }
+
+    private int enrollmentStudyYear(RegistrarEnrollment enrollment, RegistrarStudent student) {
+        return enrollment.getAcademicYear() - student.getAdmissionYear() + 1;
+    }
+
+    private boolean isPast(int year, int semester, RegistrarStudent student) {
+        return year < student.getCurrentYear()
+                || (Objects.equals(year, student.getCurrentYear()) && semester < student.getCurrentSemester());
+    }
+
+    private String getTermStatus(int year, int semester, RegistrarStudent student) {
+        if (isPast(year, semester, student)) {
+            return "completed";
+        }
+        return Objects.equals(year, student.getCurrentYear())
+                && Objects.equals(semester, student.getCurrentSemester()) ? "current" : "upcoming";
+    }
+
+    private record PlacementKey(Integer courseId, Integer year, Integer semester) {}
 
     @Transactional
     public PlanListResponseDto getUserPlansByEmail(String email) {
