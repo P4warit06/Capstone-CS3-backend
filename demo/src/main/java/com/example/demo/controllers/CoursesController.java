@@ -10,7 +10,7 @@ import org.springframework.data.domain.Sort;
 import com.example.demo.services.courses.CoursesService;
 import com.example.demo.entity.Course;
 import com.example.demo.dtos.CourseDto;
-import com.example.demo.dtos.PagedResponse;
+import com.example.demo.dtos.PagedResponseDto;
 import java.util.Collections;
 
 
@@ -22,7 +22,7 @@ public class CoursesController {
     private CoursesService coursesService;
 
     @GetMapping
-    public PagedResponse<CourseDto> getAllCourses(
+    public PagedResponseDto<CourseDto> getAllCourses(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "24") int size,
             @RequestParam(defaultValue = "courseCode,asc") String sort) {
@@ -36,7 +36,7 @@ public class CoursesController {
 
         // Out-of-bounds page handling
         if (page >= coursePage.getTotalPages() && coursePage.getTotalPages() > 0) {
-            return new PagedResponse<>(
+            return new PagedResponseDto<>(
                     Collections.emptyList(),
                     page,
                     size,
@@ -45,7 +45,7 @@ public class CoursesController {
             );
         }
 
-        return new PagedResponse<>(
+        return new PagedResponseDto<>(
                 coursePage.getContent(),
                 coursePage.getNumber(),
                 coursePage.getSize(),
