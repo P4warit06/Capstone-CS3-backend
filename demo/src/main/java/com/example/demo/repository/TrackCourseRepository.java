@@ -9,4 +9,5 @@ import java.util.List;
 @Repository
 public interface TrackCourseRepository extends JpaRepository<TrackCourse, TrackCourseId> {
     List<TrackCourse> findByTrackTrackId(Integer trackId);
+    List<TrackCourse> findByTrackTrackIdAndIsRequiredTrue(Integer trackId);
 }

@@ -12,6 +12,8 @@ import java.util.Optional;
 @Repository
 public interface StudyPlanRepository extends JpaRepository<StudyPlan, Integer> {
     Optional<StudyPlan> findByUserId(Integer userId);
+    @Query("SELECT sp FROM StudyPlan sp LEFT JOIN FETCH sp.track WHERE sp.studyPlanId = :planId AND sp.userId = :userId")
+    Optional<StudyPlan> findOwnedPlanById(@Param("planId") Integer planId, @Param("userId") Integer userId);
     Optional<StudyPlan> findByUserIdAndTrackTrackIdAndIsDefaultTrue(Integer userId, Integer trackId);
     Optional<StudyPlan> findByUserIdAndTrackTrackId(Integer userId, Integer trackId);
 
