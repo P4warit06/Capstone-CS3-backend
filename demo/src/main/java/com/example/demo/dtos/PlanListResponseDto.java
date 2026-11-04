@@ -11,7 +11,7 @@ import java.util.List;
 @Builder
 @AllArgsConstructor
 @NoArgsConstructor
-public class PlanListResponse {
+public class PlanListResponseDto {
     @Builder.Default
     private Integer maxPlans = 5;
     private List<PlanDto> plans;

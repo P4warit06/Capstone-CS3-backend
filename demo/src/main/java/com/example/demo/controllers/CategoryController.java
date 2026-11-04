@@ -6,7 +6,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import com.example.demo.services.categories.CategoriesService;
 import com.example.demo.entity.Category;
-import com.example.demo.dtos.PagedResponse;
+import com.example.demo.dtos.PagedResponseDto;
 
 
 @RestController
@@ -16,12 +16,12 @@ public class CategoryController {
     private CategoriesService categoriesService;
 
     @GetMapping
-    public PagedResponse<Category> getAllCategories(
+    public PagedResponseDto<Category> getAllCategories(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
         Pageable pageable = PageRequest.of(page, size);
         Page<Category> categoryPage = categoriesService.getAllCategories(pageable);
-        return new PagedResponse<>(
+        return new PagedResponseDto<>(
                 categoryPage.getContent(),
                 categoryPage.getNumber(),
                 categoryPage.getSize(),

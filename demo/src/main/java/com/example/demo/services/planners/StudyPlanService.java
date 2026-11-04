@@ -1,13 +1,16 @@
 package com.example.demo.services.planners;
 
+import com.example.demo.dtos.CreatePlanRequestDto;
 import com.example.demo.dtos.PlanDto;
-import com.example.demo.dtos.PlanListResponse;
+import com.example.demo.dtos.PlanListResponseDto;
 import com.example.demo.dtos.PlanTrackDto;
 import com.example.demo.entity.RegistrarStudent;
 import com.example.demo.entity.StudyPlan;
 import com.example.demo.entity.User;
+import com.example.demo.exceptions.PlanLimitExceededException;
 import com.example.demo.repository.RegistrarStudentRepository;
 import com.example.demo.repository.StudyPlanRepository;
+import com.example.demo.repository.TrackRepository;
 import com.example.demo.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -25,26 +28,57 @@ public class StudyPlanService {
     private final StudyPlanRepository studyPlanRepository;
     private final RegistrarStudentRepository registrarStudentRepository;
     private final UserRepository userRepository;
+    private final TrackRepository trackRepository;
 
     @Transactional
-    public PlanListResponse getUserPlansByEmail(String email) {
-        if (email == null || email.isBlank()) {
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Token subject is missing");
-        }
-        User currentUser = userRepository.findByEmailIgnoreCase(email)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
+    public PlanListResponseDto getUserPlansByEmail(String email) {
+        User currentUser = findUserByEmail(email);
         return getUserPlans(currentUser);
     }
 
     @Transactional
-    public PlanListResponse getUserPlans(User currentUser) {
-        // 1. users.student_id -> registrar_students (ถ้าไม่มีส่ง 404)
-        if (currentUser.getStudentId() == null) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Student ID not found for this user");
+    public PlanDto createPlanByEmail(String email, CreatePlanRequestDto request) {
+        User currentUser = findUserByEmail(email);
+        RegistrarStudent student = findRegistrarStudent(currentUser);
+
+        if (request == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Request body is required");
+        }
+        String planName = request.getPlanName();
+        if (planName == null || planName.isBlank() || planName.length() > 100) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "planName must not be blank and must be at most 100 characters");
         }
 
-        RegistrarStudent student = registrarStudentRepository.findByStudentId(currentUser.getStudentId())
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Student not found in registrar system"));
+        long planCount = studyPlanRepository.countByUserId(currentUser.getId());
+        if (planCount >= 5) {
+            throw new PlanLimitExceededException("สร้างแผนได้ไม่เกิน 5 แผน");
+        }
+
+        StudyPlan plan = new StudyPlan();
+        plan.setUserId(currentUser.getId());
+        plan.setCurriculumVersion(student.getCurriculumVersion());
+        plan.setPlanName(planName);
+        plan.setIsDefault(planCount == 0);
+
+        if (request.getTrackId() != null) {
+            var track = trackRepository.findById(request.getTrackId())
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Track not found"));
+            if (!track.getCurriculumVersion().getCurriculumVersionId()
+                    .equals(student.getCurriculumVersion().getCurriculumVersionId())) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                        "Track does not belong to the student's curriculum");
+            }
+            plan.setTrack(track);
+        }
+
+        return mapToPlanDto(studyPlanRepository.save(plan));
+    }
+
+    @Transactional
+    public PlanListResponseDto getUserPlans(User currentUser) {
+        // 1. users.student_id -> registrar_students (ถ้าไม่มีส่ง 404)
+        RegistrarStudent student = findRegistrarStudent(currentUser);
 
         // 2. ดึงรายการแผนการเรียนของผู้ใช้
         List<StudyPlan> plans = studyPlanRepository.findByUserIdCustomOrder(currentUser.getId());
@@ -65,7 +99,7 @@ public class StudyPlanService {
         // 4. Transform เป็น DTO
         List<PlanDto> planDtos = plans.stream().map(this::mapToPlanDto).collect(Collectors.toList());
 
-        return PlanListResponse.builder()
+        return PlanListResponseDto.builder()
                 .maxPlans(5)
                 .plans(planDtos)
                 .build();
@@ -88,6 +122,23 @@ public class StudyPlanService {
                 .track(planTrackDto)
                 .updatedAt(plan.getUpdatedAt())
                 .build();
+    }
+
+    private User findUserByEmail(String email) {
+        if (email == null || email.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Token subject is missing");
+        }
+        return userRepository.findByEmailIgnoreCase(email)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
+    }
+
+    private RegistrarStudent findRegistrarStudent(User currentUser) {
+        if (currentUser.getStudentId() == null) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Student ID not found for this user");
+        }
+        return registrarStudentRepository.findByStudentId(currentUser.getStudentId())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
+                        "Student not found in registrar system"));
     }
 
     @Transactional
