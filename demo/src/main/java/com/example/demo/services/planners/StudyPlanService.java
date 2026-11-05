@@ -53,6 +53,7 @@ public class StudyPlanService {
     private final TrackCourseRepository trackCourseRepository;
     private final StudyPlanCourseRepository studyPlanCourseRepository;
     private final RegistrarEnrollmentRepository registrarEnrollmentRepository;
+    private final StudyPlanCreditService studyPlanCreditService;
 
     @Transactional(readOnly = true)
     public StudyPlanDetailDto getPlanById(String email, Integer planId) {
@@ -69,7 +70,13 @@ public class StudyPlanService {
                 .toList();
         List<TrackCourse> trackCourses = plan.getTrack() == null
                 ? List.of()
-                : trackCourseRepository.findByTrackTrackIdAndIsRequiredTrue(plan.getTrack().getTrackId());
+                : trackCourseRepository.findByTrackTrackId(plan.getTrack().getTrackId());
+        List<TrackCourse> requiredTrackCourses = trackCourses.stream()
+                .filter(mapping -> Boolean.TRUE.equals(mapping.getIsRequired()))
+                .toList();
+        Set<Integer> trackCourseIds = trackCourses.stream()
+                .map(mapping -> mapping.getCourse().getCourseId())
+                .collect(Collectors.toSet());
         List<StudyPlanCourse> userCourses = studyPlanCourseRepository.findByStudyPlanStudyPlanId(planId);
         List<RegistrarEnrollment> enrollments = registrarEnrollmentRepository.findByStudentId(student.getStudentId());
 
@@ -93,11 +100,13 @@ public class StudyPlanService {
             if (!requiredCourseIds.add(course.getCourseId())) {
                 continue;
             }
+            String trackLabel = trackCourseIds.contains(course.getCourseId()) && plan.getTrack() != null
+                    ? plan.getTrack().getTrackNameEn() : null;
             addRequiredCourse(placements, representedEnrollmentIds, enrollmentsByCourse, course,
-                    categoriesByCourse.get(course.getCourseId()), null, mapping.getStandardYear(),
+                    categoriesByCourse.get(course.getCourseId()), trackLabel, mapping.getStandardYear(),
                     mapping.getStandardSemester(), student);
         }
-        for (TrackCourse mapping : trackCourses) {
+        for (TrackCourse mapping : requiredTrackCourses) {
             Course course = mapping.getCourse();
             if (!requiredCourseIds.add(course.getCourseId())) {
                 continue;
@@ -120,9 +129,11 @@ public class StudyPlanService {
                     ? (isPast(year, semester, student) ? "not_registered" : "planned")
                     : matchingEnrollments.getFirst().getStatus();
             matchingEnrollments.forEach(enrollment -> representedEnrollmentIds.add(enrollment.getEnrollmentId()));
+            String trackLabel = trackCourseIds.contains(course.getCourseId()) && plan.getTrack() != null
+                    ? plan.getTrack().getTrackNameEn() : null;
             placements.putIfAbsent(new PlacementKey(course.getCourseId(), year, semester),
                     toCourseDto(course, "user", false, categoriesByCourse.get(course.getCourseId()), status,
-                            plannedCourse.getStudyPlanCourseId(), null));
+                            plannedCourse.getStudyPlanCourseId(), trackLabel));
         }
 
         for (RegistrarEnrollment enrollment : enrollments) {
@@ -131,9 +142,11 @@ public class StudyPlanService {
             }
             int year = enrollmentStudyYear(enrollment, student);
             Course course = findCourseForEnrollment(enrollment, curriculumCourses, trackCourses, userCourses);
+            String trackLabel = trackCourseIds.contains(course.getCourseId()) && plan.getTrack() != null
+                    ? plan.getTrack().getTrackNameEn() : null;
             placements.putIfAbsent(new PlacementKey(course.getCourseId(), year, enrollment.getSemester()),
                     toCourseDto(course, "registrar", false, categoriesByCourse.get(course.getCourseId()),
-                            enrollment.getStatus(), null, null));
+                            enrollment.getStatus(), null, trackLabel));
         }
 
         int maxYear = Math.max(4, placements.keySet().stream().mapToInt(PlacementKey::year).max().orElse(4));
@@ -151,16 +164,29 @@ public class StudyPlanService {
                         .sorted(Comparator.comparing(StudyPlanDetailDto.Course::getLocked).reversed()
                                 .thenComparing(StudyPlanDetailDto.Course::getCourseCode))
                         .toList();
-                int credits = courses.stream()
-                        .filter(course -> !"withdrawn".equals(course.getStatus())
-                                && !"not_registered".equals(course.getStatus()))
-                        .mapToInt(StudyPlanDetailDto.Course::getCredits)
-                        .sum();
+                StudyPlanCreditService.CreditSummary creditSummary = studyPlanCreditService.calculate(
+                        courses.stream()
+                                .map(course -> new StudyPlanCreditService.CourseCredit(
+                                        course.getCredits(),
+                                        course.getCategory() == null ? null : course.getCategory().getCode(),
+                                        course.getCourseCode(),
+                                        course.getNameTh(),
+                                        course.getNameEn(),
+                                        "track".equals(course.getSource())
+                                                || trackCourseIds.contains(course.getCourseId()),
+                                        course.getStatus()))
+                                .toList());
+                int credits = creditSummary.totalCredits();
                 yearCredits += credits;
                 semesters.add(StudyPlanDetailDto.Semester.builder()
                         .semester(semester)
                         .status(getTermStatus(year, semester, student))
                         .totalCredits(credits)
+                        .itFoundationCredits(creditSummary.itFoundationCredits())
+                        .generalEducationCredits(creditSummary.generalEducationCredits())
+                        .trackCredits(creditSummary.trackCredits())
+                        .projectAndWorkCredits(creditSummary.projectAndWorkCredits())
+                        .freeElectiveCredits(creditSummary.freeElectiveCredits())
                         .courses(courses)
                         .build());
             }

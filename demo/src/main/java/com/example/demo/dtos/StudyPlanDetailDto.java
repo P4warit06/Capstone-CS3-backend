@@ -61,6 +61,11 @@ public class StudyPlanDetailDto {
         private Integer semester;
         private String status;
         private Integer totalCredits;
+        private Integer itFoundationCredits;
+        private Integer generalEducationCredits;
+        private Integer trackCredits;
+        private Integer projectAndWorkCredits;
+        private Integer freeElectiveCredits;
         private List<Course> courses;
     }
 
