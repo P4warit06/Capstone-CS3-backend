@@ -1,5 +1,6 @@
 package com.example.demo.services.planners;
 
+import com.example.demo.dtos.AddPlanCourseRequestDto;
 import com.example.demo.dtos.CreatePlanRequestDto;
 import com.example.demo.dtos.PlanDto;
 import com.example.demo.dtos.PlanListResponseDto;
@@ -25,11 +26,13 @@ import com.example.demo.repository.TrackCourseRepository;
 import com.example.demo.repository.TrackRepository;
 import com.example.demo.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -198,6 +201,105 @@ public class StudyPlanService {
                 .track(track)
                 .years(years)
                 .build();
+    }
+
+    /** ปีการศึกษาที่วางแผนได้สูงสุด (ป.ตรี 4 ปี เรียนได้ไม่เกิน 8 ปี) — ตรงกับปุ่ม "เพิ่มปีการศึกษา" ฝั่ง FE */
+    private static final int MAX_STUDY_YEAR = 8;
+
+    /**
+     * SCRUM-171: เพิ่มวิชาที่นักศึกษาเลือกเองลงแผน (study_plan_courses)
+     * เพิ่มได้เฉพาะเทอมที่ยังไม่ถึง และกันวิชาที่อยู่ในแผนแล้ว / ลงทะเบียนไปแล้ว
+     */
+    @Transactional
+    public StudyPlanDetailDto.Course addCourseToPlan(String email, Integer planId, AddPlanCourseRequestDto request) {
+        User currentUser = findUserByEmail(email);
+        StudyPlan plan = studyPlanRepository.findOwnedPlanById(planId, currentUser.getId())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "ไม่พบแผนการเรียน"));
+        RegistrarStudent student = findRegistrarStudent(currentUser);
+
+        // 1) ตรวจ body
+        if (request == null || request.getCourseId() == null
+                || request.getStudyYear() == null || request.getStudySemester() == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "ต้องระบุ courseId, studyYear และ studySemester");
+        }
+        int year = request.getStudyYear();
+        int semester = request.getStudySemester();
+        if (year < 1 || year > MAX_STUDY_YEAR || semester < 1 || semester > 2) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "ปีต้องอยู่ระหว่าง 1-" + MAX_STUDY_YEAR + " และภาคเรียนต้องเป็น 1 หรือ 2");
+        }
+        if (!"upcoming".equals(getTermStatus(year, semester, student))) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "เพิ่มวิชาได้เฉพาะภาคเรียนที่ยังไม่ถึง");
+        }
+
+        Course course = courseRepository.findByCourseId(request.getCourseId())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "ไม่พบรายวิชา"));
+        if (!Boolean.TRUE.equals(course.getIsActive())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "รายวิชานี้ปิดให้บริการแล้ว");
+        }
+        Integer courseId = course.getCourseId();
+
+        // 2) ลงทะเบียนไปแล้ว (ผ่านแล้ว / กำลังเรียน) — W หรือติด F/U ยังเพิ่มเพื่อลงใหม่ได้
+        if (registrarEnrollmentRepository.existsActiveEnrollment(student.getStudentId(), courseId)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "ลงทะเบียนวิชานี้ไปแล้ว");
+        }
+
+        // 3) เพิ่มเองไว้ในแผนแล้ว ในเทอมที่ยังไม่ผ่าน
+        boolean alreadyPlanned = studyPlanCourseRepository.findByStudyPlanStudyPlanId(planId).stream()
+                .anyMatch(pc -> pc.getCourse().getCourseId().equals(courseId)
+                        && !isPast(pc.getStudyYear(), pc.getStudySemester(), student));
+        if (alreadyPlanned) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "มีวิชานี้ในแผนแล้ว");
+        }
+
+        // 4) วิชาบังคับ (หลักสูตร / track ของแผน) ที่ยังไม่เคยลงและเทอมมาตรฐานยังไม่ผ่าน = อยู่ในแผนอัตโนมัติแล้ว
+        //    ถ้าเทอมมาตรฐานผ่านไปแล้วแต่ไม่ได้ลง (not_registered) หรือเคย W/F ให้เพิ่มเพื่อวางแผนลงใหม่ได้
+        Integer curriculumVersionId = plan.getCurriculumVersion().getCurriculumVersionId();
+        List<CurriculumCategoryCourse> curriculumMappings = curriculumCategoryCourseRepository
+                .findByCurriculumCategoryCurriculumVersionCurriculumVersionId(curriculumVersionId);
+        boolean neverEnrolled = !registrarEnrollmentRepository
+                .existsByStudentIdAndCourseId(student.getStudentId(), courseId);
+        if (neverEnrolled) {
+            boolean requiredUpcoming = curriculumMappings.stream()
+                    .anyMatch(m -> Boolean.TRUE.equals(m.getIsRequired())
+                            && m.getCourse().getCourseId().equals(courseId)
+                            && m.getStandardYear() != null && m.getStandardSemester() != null
+                            && !isPast(m.getStandardYear(), m.getStandardSemester(), student));
+            if (!requiredUpcoming && plan.getTrack() != null) {
+                requiredUpcoming = trackCourseRepository
+                        .findByTrackTrackIdAndIsRequiredTrue(plan.getTrack().getTrackId()).stream()
+                        .anyMatch(m -> m.getCourse().getCourseId().equals(courseId)
+                                && m.getStandardYear() != null && m.getStandardSemester() != null
+                                && !isPast(m.getStandardYear(), m.getStandardSemester(), student));
+            }
+            if (requiredUpcoming) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "เป็นวิชาบังคับที่อยู่ในแผนแล้ว");
+            }
+        }
+
+        // 5) บันทึก + อัปเดตเวลาแก้ไขล่าสุดของแผน
+        StudyPlanCourse planCourse = new StudyPlanCourse();
+        planCourse.setStudyPlan(plan);
+        planCourse.setCourse(course);
+        planCourse.setStudyYear(year);
+        planCourse.setStudySemester(semester);
+        try {
+            planCourse = studyPlanCourseRepository.saveAndFlush(planCourse);
+        } catch (DataIntegrityViolationException e) {
+            // กดซ้ำพร้อมกัน → ชน unique index (plan, course, year, semester)
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "มีวิชานี้ในแผนแล้ว");
+        }
+        plan.setUpdatedAt(LocalDateTime.now());
+        studyPlanRepository.save(plan);
+
+        Category category = curriculumMappings.stream()
+                .filter(m -> m.getCourse().getCourseId().equals(courseId))
+                .map(m -> m.getCurriculumCategory().getCategory())
+                .findFirst()
+                .orElse(null);
+        return toCourseDto(course, "user", false, category, "planned", planCourse.getStudyPlanCourseId(), null);
     }
 
     private void addRequiredCourse(Map<PlacementKey, StudyPlanDetailDto.Course> placements,

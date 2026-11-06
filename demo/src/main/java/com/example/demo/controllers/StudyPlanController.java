@@ -1,5 +1,6 @@
 package com.example.demo.controllers;
 
+import com.example.demo.dtos.AddPlanCourseRequestDto;
 import com.example.demo.dtos.CreatePlanRequestDto;
 import com.example.demo.dtos.PlanDto;
 import com.example.demo.dtos.PlanListResponseDto;
@@ -41,6 +42,16 @@ public class StudyPlanController {
             @AuthenticationPrincipal Jwt token,
             @RequestBody CreatePlanRequestDto request) {
         PlanDto response = studyPlanService.createPlanByEmail(token.getSubject(), request);
+        return ResponseEntity.status(HttpStatus.CREATED).body(response);
+    }
+
+    // SCRUM-171: เพิ่มวิชาลงแผน (วิชาที่นักศึกษาเลือกเอง)
+    @PostMapping("/{id}/courses")
+    public ResponseEntity<StudyPlanDetailDto.Course> addCourse(
+            @AuthenticationPrincipal Jwt token,
+            @PathVariable Integer id,
+            @RequestBody AddPlanCourseRequestDto request) {
+        StudyPlanDetailDto.Course response = studyPlanService.addCourseToPlan(token.getSubject(), id, request);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 }

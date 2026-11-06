@@ -20,7 +20,14 @@ public class CoursesService {
     private CourseRepository courseRepository;
 
     public Page<CourseDto> getAllCourses(Pageable pageable) {
-        Page<Course> coursePage = courseRepository.findAll(pageable);
+        return getAllCourses(null, pageable);
+    }
+
+    /** q ว่าง = ทั้งหมด, มีค่า = ค้นจากรหัส / ชื่อไทย / ชื่ออังกฤษ */
+    public Page<CourseDto> getAllCourses(String q, Pageable pageable) {
+        Page<Course> coursePage = (q == null || q.isBlank())
+                ? courseRepository.findAll(pageable)
+                : courseRepository.search(q.trim(), pageable);
         return coursePage.map(this::mapToCourseDto);
     }
 

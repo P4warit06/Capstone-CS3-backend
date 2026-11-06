@@ -25,14 +25,15 @@ public class CoursesController {
     public PagedResponseDto<CourseDto> getAllCourses(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "24") int size,
-            @RequestParam(defaultValue = "courseCode,asc") String sort) {
+            @RequestParam(defaultValue = "courseCode,asc") String sort,
+            @RequestParam(required = false) String q) {
 
         // Parse sort parameter (e.g., "courseCode,asc")
         String[] sortParts = sort.split(",");
         Sort sorting = Sort.by(sortParts[1].equalsIgnoreCase("desc") ? Sort.Direction.DESC : Sort.Direction.ASC, sortParts[0]);
 
         Pageable pageable = PageRequest.of(page, size, sorting);
-        Page<CourseDto> coursePage = coursesService.getAllCourses(pageable);
+        Page<CourseDto> coursePage = coursesService.getAllCourses(q, pageable);
 
         // Out-of-bounds page handling
         if (page >= coursePage.getTotalPages() && coursePage.getTotalPages() > 0) {
