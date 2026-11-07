@@ -2,6 +2,7 @@ package com.example.demo.services.planners;
 
 import com.example.demo.dtos.AddPlanCourseRequestDto;
 import com.example.demo.dtos.CreatePlanRequestDto;
+import com.example.demo.dtos.MovePlanCourseRequestDto;
 import com.example.demo.dtos.PlanDto;
 import com.example.demo.dtos.PlanListResponseDto;
 import com.example.demo.dtos.PlanTrackDto;
@@ -326,6 +327,93 @@ public class StudyPlanService {
                 .findFirst()
                 .orElse(null);
         return toCourseDto(course, "user", false, category, "planned", planCourse.getStudyPlanCourseId(), null);
+    }
+
+    /** SCRUM-172: ย้ายวิชาที่ผู้ใช้เพิ่มเองไปยังภาคเรียนในอนาคต */
+    @Transactional
+    public StudyPlanDetailDto.Course moveCourseInPlan(
+            String email, Integer planId, Integer studyPlanCourseId, MovePlanCourseRequestDto request) {
+        User currentUser = findUserByEmail(email);
+        StudyPlan plan = studyPlanRepository.findOwnedPlanById(planId, currentUser.getId())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "ไม่พบแผนการเรียน"));
+
+        if (request == null || request.getStudyYear() == null || request.getStudySemester() == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "ต้องระบุ studyYear และ studySemester");
+        }
+        int destinationYear = request.getStudyYear();
+        int destinationSemester = request.getStudySemester();
+        if (destinationYear < 1 || destinationYear > MAX_STUDY_YEAR
+                || destinationSemester < 1 || destinationSemester > 2) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "ปีต้องอยู่ระหว่าง 1-8 และภาคเรียนต้องเป็น 1 หรือ 2");
+        }
+
+        // Query must include planId so a course ID from another plan is indistinguishable from a missing one.
+        StudyPlanCourse planCourse = studyPlanCourseRepository
+                .findByStudyPlanCourseIdAndStudyPlanStudyPlanId(studyPlanCourseId, planId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "ไม่พบวิชานี้ในแผน"));
+        RegistrarStudent student = findRegistrarStudent(currentUser);
+        int originalYear = planCourse.getStudyYear();
+        int originalSemester = planCourse.getStudySemester();
+
+        if (!"upcoming".equals(getTermStatus(originalYear, originalSemester, student))) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "ย้ายได้เฉพาะวิชาในภาคเรียนที่ยังไม่ถึง");
+        }
+        if (!"upcoming".equals(getTermStatus(destinationYear, destinationSemester, student))) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "ย้ายได้เฉพาะไปภาคเรียนที่ยังไม่ถึง");
+        }
+        if (originalYear == destinationYear && originalSemester == destinationSemester) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "วิชานี้อยู่ภาคเรียนนี้อยู่แล้ว");
+        }
+
+        Integer courseId = planCourse.getCourse().getCourseId();
+        if (studyPlanCourseRepository
+                .existsByStudyPlanStudyPlanIdAndCourseCourseIdAndStudyYearAndStudySemester(
+                        planId, courseId, destinationYear, destinationSemester)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "มีวิชานี้ในภาคเรียนที่เลือกแล้ว");
+        }
+
+        planCourse.setStudyYear(destinationYear);
+        planCourse.setStudySemester(destinationSemester);
+        try {
+            planCourse = studyPlanCourseRepository.saveAndFlush(planCourse);
+        } catch (DataIntegrityViolationException exception) {
+            // Covers a concurrent move that races the existence check above.
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "มีวิชานี้ในภาคเรียนที่เลือกแล้ว");
+        }
+
+        plan.setUpdatedAt(LocalDateTime.now());
+        studyPlanRepository.save(plan);
+
+        Category category = curriculumCategoryCourseRepository
+                .findByCurriculumCategoryCurriculumVersionCurriculumVersionId(
+                        plan.getCurriculumVersion().getCurriculumVersionId())
+                .stream()
+                .filter(mapping -> mapping.getCourse().getCourseId().equals(courseId))
+                .map(mapping -> mapping.getCurriculumCategory().getCategory())
+                .findFirst()
+                .orElse(null);
+        return toCourseDto(planCourse.getCourse(), "user", false, category, "planned",
+                planCourse.getStudyPlanCourseId(), null);
+    }
+
+    /** SCRUM-172: ลบวิชาที่ผู้ใช้เพิ่มเองได้ทุกภาคเรียน */
+    @Transactional
+    public void removeCourseFromPlan(String email, Integer planId, Integer studyPlanCourseId) {
+        User currentUser = findUserByEmail(email);
+        StudyPlan plan = studyPlanRepository.findOwnedPlanById(planId, currentUser.getId())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "ไม่พบแผนการเรียน"));
+
+        StudyPlanCourse planCourse = studyPlanCourseRepository
+                .findByStudyPlanCourseIdAndStudyPlanStudyPlanId(studyPlanCourseId, planId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "ไม่พบวิชานี้ในแผน"));
+
+        studyPlanCourseRepository.delete(planCourse);
+        plan.setUpdatedAt(LocalDateTime.now());
+        studyPlanRepository.save(plan);
     }
 
     private void addRequiredCourse(Map<PlacementKey, StudyPlanDetailDto.Course> placements,
