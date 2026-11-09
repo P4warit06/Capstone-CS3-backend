@@ -52,10 +52,10 @@ public class SecurityConfig {
 
     @Bean
     @Order(2)
-    public SecurityFilterChain plansSecurityFilterChain(
+    public SecurityFilterChain applicationSecurityFilterChain(
             HttpSecurity http, @Qualifier("plansJwtDecoder") JwtDecoder plansJwtDecoder) throws Exception {
         http
-                .securityMatcher("/v1/plans/**")
+                .securityMatcher("/v1/plans/**", "/v1/saved-courses/**")
                 .csrf(AbstractHttpConfigurer::disable)
                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
