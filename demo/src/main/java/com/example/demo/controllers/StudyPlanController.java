@@ -6,6 +6,7 @@ import com.example.demo.dtos.MovePlanCourseRequestDto;
 import com.example.demo.dtos.PlanDto;
 import com.example.demo.dtos.PlanListResponseDto;
 import com.example.demo.dtos.StudyPlanDetailDto;
+import com.example.demo.dtos.UpdatePlanRequestDto;
 import com.example.demo.services.planners.StudyPlanService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -46,6 +47,29 @@ public class StudyPlanController {
             @RequestBody CreatePlanRequestDto request) {
         PlanDto response = studyPlanService.createPlanByEmail(token.getSubject(), request);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
+    }
+
+    @PatchMapping("/{planId}")
+    public ResponseEntity<PlanDto> updatePlan(
+            @AuthenticationPrincipal Jwt token,
+            @PathVariable Integer planId,
+            @RequestBody UpdatePlanRequestDto request) {
+        return ResponseEntity.ok(studyPlanService.updatePlanName(token.getSubject(), planId, request));
+    }
+
+    @PatchMapping("/{planId}/default")
+    public ResponseEntity<PlanDto> setDefaultPlan(
+            @AuthenticationPrincipal Jwt token,
+            @PathVariable Integer planId) {
+        return ResponseEntity.ok(studyPlanService.setDefaultPlan(token.getSubject(), planId));
+    }
+
+    @DeleteMapping("/{planId}")
+    public ResponseEntity<Void> deletePlan(
+            @AuthenticationPrincipal Jwt token,
+            @PathVariable Integer planId) {
+        studyPlanService.deletePlan(token.getSubject(), planId);
+        return ResponseEntity.noContent().build();
     }
 
     // SCRUM-171: เพิ่มวิชาลงแผน (วิชาที่นักศึกษาเลือกเอง)

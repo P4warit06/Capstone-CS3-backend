@@ -7,6 +7,7 @@ import com.example.demo.dtos.PlanDto;
 import com.example.demo.dtos.PlanListResponseDto;
 import com.example.demo.dtos.PlanTrackDto;
 import com.example.demo.dtos.StudyPlanDetailDto;
+import com.example.demo.dtos.UpdatePlanRequestDto;
 import com.example.demo.entity.Category;
 import com.example.demo.entity.Course;
 import com.example.demo.entity.CurriculumCategoryCourse;
@@ -545,6 +546,53 @@ public class StudyPlanService {
     }
 
     @Transactional
+    public PlanDto updatePlanName(String email, Integer planId, UpdatePlanRequestDto request) {
+        User currentUser = findUserByEmail(email);
+        StudyPlan plan = findOwnedPlan(currentUser, planId);
+        if (request == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Request body is required");
+        }
+
+        String planName = request.getPlanName();
+        if (planName == null || planName.isBlank() || planName.length() > 100) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "planName must not be blank and must be at most 100 characters");
+        }
+
+        plan.setPlanName(planName);
+        return mapToPlanDto(studyPlanRepository.save(plan));
+    }
+
+    @Transactional
+    public PlanDto setDefaultPlan(String email, Integer planId) {
+        User currentUser = findUserByEmail(email);
+        StudyPlan plan = findOwnedPlan(currentUser, planId);
+
+        List<StudyPlan> userPlans = studyPlanRepository.findByUserIdCustomOrder(currentUser.getId());
+        for (StudyPlan userPlan : userPlans) {
+            userPlan.setIsDefault(userPlan.getStudyPlanId().equals(planId));
+        }
+
+        return mapToPlanDto(plan);
+    }
+
+    @Transactional
+    public void deletePlan(String email, Integer planId) {
+        User currentUser = findUserByEmail(email);
+        StudyPlan plan = findOwnedPlan(currentUser, planId);
+        List<StudyPlan> remainingPlans = studyPlanRepository.findByUserIdCustomOrder(currentUser.getId()).stream()
+                .filter(userPlan -> !userPlan.getStudyPlanId().equals(planId))
+                .toList();
+
+        if (Boolean.TRUE.equals(plan.getIsDefault()) && !remainingPlans.isEmpty()) {
+            remainingPlans.get(0).setIsDefault(true);
+        }
+
+        studyPlanCourseRepository.deleteAll(studyPlanCourseRepository.findByStudyPlanStudyPlanId(planId));
+        studyPlanRepository.delete(plan);
+    }
+
+    @Transactional
     public PlanListResponseDto getUserPlans(User currentUser) {
         // 1. users.student_id -> registrar_students (ถ้าไม่มีส่ง 404)
         RegistrarStudent student = findRegistrarStudent(currentUser);
@@ -572,6 +620,11 @@ public class StudyPlanService {
                 .maxPlans(5)
                 .plans(planDtos)
                 .build();
+    }
+
+    private StudyPlan findOwnedPlan(User currentUser, Integer planId) {
+        return studyPlanRepository.findOwnedPlanById(planId, currentUser.getId())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Study plan not found"));
     }
 
     private PlanDto mapToPlanDto(StudyPlan plan) {
