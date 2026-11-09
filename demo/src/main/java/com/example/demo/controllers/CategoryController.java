@@ -1,12 +1,10 @@
 package com.example.demo.controllers;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
 import com.example.demo.services.categories.CategoriesService;
 import com.example.demo.entity.Category;
-import com.example.demo.dtos.PagedResponseDto;
+import com.example.demo.dtos.CategoryDto;
+import java.util.List;
 
 
 @RestController
@@ -15,19 +13,10 @@ public class CategoryController {
     @Autowired
     private CategoriesService categoriesService;
 
+    // SCRUM-218: รายการหมวดทั้งหมด (ไม่แบ่งหน้า) ให้ FE ใช้สร้างตัวเลือก filter
     @GetMapping
-    public PagedResponseDto<Category> getAllCategories(
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "20") int size) {
-        Pageable pageable = PageRequest.of(page, size);
-        Page<Category> categoryPage = categoriesService.getAllCategories(pageable);
-        return new PagedResponseDto<>(
-                categoryPage.getContent(),
-                categoryPage.getNumber(),
-                categoryPage.getSize(),
-                categoryPage.getTotalElements(),
-                categoryPage.getTotalPages()
-        );
+    public List<CategoryDto> getAllCategories() {
+        return categoriesService.getAllCategoryDtos();
     }
     @GetMapping("/{id}")
     public Category getCategoryById(@PathVariable Long id) {

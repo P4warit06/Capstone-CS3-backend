@@ -5,6 +5,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import java.util.List;
+import com.example.demo.dtos.CategoryDto;
 import com.example.demo.entity.Category;
 import com.example.demo.repository.CategoriesRepository;
 @Service
@@ -14,6 +17,16 @@ public class CategoriesService {
 
     public Page<Category> getAllCategories(Pageable pageable) {
         return categoriesRepository.findAll(pageable);
+    }
+
+    public List<CategoryDto> getAllCategoryDtos() {
+        return categoriesRepository.findAll(Sort.by("categoryId")).stream()
+                .map(cat -> new CategoryDto(
+                        cat.getCategoryId() != null ? cat.getCategoryId().longValue() : null,
+                        cat.getCode(),
+                        cat.getCategoryNameTh(),
+                        cat.getCategoryNameEn()))
+                .toList();
     }
 
     public Category getCategoryById(Long id) {

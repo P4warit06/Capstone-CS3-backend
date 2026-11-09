@@ -26,4 +26,25 @@ public interface CourseRepository extends JpaRepository<Course, Long> {
                OR LOWER(c.nameEn) LIKE LOWER(CONCAT('%', :q, '%'))
             """)
     Page<Course> search(@Param("q") String q, Pageable pageable);
+
+    // SCRUM-218: ค้นหา + filter ตามหมวด (categories.code) — ได้วิชาในหมวดย่อยของหมวดที่เลือกด้วย
+    // q ว่าง ("") = ไม่กรองด้วยคำค้น, codes ต้องไม่ว่าง (ถ้าไม่ filter หมวดให้ใช้ findAll / search)
+    @Query("""
+            SELECT c FROM Course c
+            WHERE (LOWER(c.courseCode) LIKE LOWER(CONCAT('%', :q, '%'))
+                OR LOWER(c.nameTh) LIKE LOWER(CONCAT('%', :q, '%'))
+                OR LOWER(c.nameEn) LIKE LOWER(CONCAT('%', :q, '%')))
+              AND EXISTS (
+                SELECT 1 FROM CurriculumCategoryCourse ccc
+                JOIN ccc.curriculumCategory cc
+                JOIN cc.category cat
+                LEFT JOIN cc.parentCurriculumCategory pcc
+                LEFT JOIN pcc.category pcat
+                WHERE ccc.course = c
+                  AND (cat.code IN :codes OR pcat.code IN :codes)
+              )
+            """)
+    Page<Course> searchByCategoryCodes(@Param("q") String q,
+                                       @Param("codes") List<String> codes,
+                                       Pageable pageable);
 }

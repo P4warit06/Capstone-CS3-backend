@@ -25,10 +25,38 @@ public class CoursesService {
 
     /** q ว่าง = ทั้งหมด, มีค่า = ค้นจากรหัส / ชื่อไทย / ชื่ออังกฤษ */
     public Page<CourseDto> getAllCourses(String q, Pageable pageable) {
-        Page<Course> coursePage = (q == null || q.isBlank())
-                ? courseRepository.findAll(pageable)
-                : courseRepository.search(q.trim(), pageable);
+        return getAllCourses(q, null, pageable);
+    }
+
+    /**
+     * SCRUM-218: category = code ของหมวด คั่นด้วย comma เช่น "GE,FREE_ELECTIVE" (หลายหมวด = OR)
+     * ว่าง/null = ไม่ filter หมวด
+     */
+    public Page<CourseDto> getAllCourses(String q, String category, Pageable pageable) {
+        boolean hasQuery = q != null && !q.isBlank();
+        List<String> codes = parseCategoryCodes(category);
+
+        Page<Course> coursePage;
+        if (!codes.isEmpty()) {
+            coursePage = courseRepository.searchByCategoryCodes(hasQuery ? q.trim() : "", codes, pageable);
+        } else if (hasQuery) {
+            coursePage = courseRepository.search(q.trim(), pageable);
+        } else {
+            coursePage = courseRepository.findAll(pageable);
+        }
         return coursePage.map(this::mapToCourseDto);
+    }
+
+    private List<String> parseCategoryCodes(String category) {
+        if (category == null || category.isBlank()) {
+            return Collections.emptyList();
+        }
+        return Arrays.stream(category.split(","))
+                .map(String::trim)
+                .filter(code -> !code.isEmpty())
+                .map(code -> code.toUpperCase(Locale.ROOT))
+                .distinct()
+                .toList();
     }
 
     public CourseDto mapToCourseDto(Course course) {
