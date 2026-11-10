@@ -1,5 +1,6 @@
 package com.example.demo.config;
 
+import org.springframework.http.HttpMethod;
 import java.util.regex.Pattern;
 
 import org.springframework.beans.factory.annotation.Value;
@@ -55,7 +56,11 @@ public class SecurityConfig {
     public SecurityFilterChain applicationSecurityFilterChain(
             HttpSecurity http, @Qualifier("plansJwtDecoder") JwtDecoder plansJwtDecoder) throws Exception {
         http
-                .securityMatcher("/v1/plans/**", "/v1/saved-courses/**")
+                .securityMatchers(matchers -> matchers
+                        .requestMatchers("/v1/plans/**", "/v1/saved-courses/**")
+                        // SCRUM-203: เขียนรีวิว / เช็คสิทธิ์รีวิว ต้อง login (GET รายการรีวิวยัง public)
+                        .requestMatchers(HttpMethod.POST, "/v1/courses/*/reviews")
+                        .requestMatchers(HttpMethod.GET, "/v1/courses/*/reviews/me"))
                 .csrf(AbstractHttpConfigurer::disable)
                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth

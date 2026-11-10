@@ -27,6 +27,22 @@ public interface RegistrarEnrollmentRepository extends JpaRepository<RegistrarEn
             """, nativeQuery = true)
     boolean existsActiveEnrollment(@Param("studentId") String studentId, @Param("courseId") Integer courseId);
 
+    /**
+     * SCRUM-203: ลงทะเบียนวิชานี้จริง (ไม่ใช่ W) ในเทอมที่จบแล้ว — ก่อน (currentAcademicYear, currentSemester)
+     */
+    @Query("""
+            SELECT COUNT(e) > 0 FROM RegistrarEnrollment e
+            WHERE e.studentId = :studentId
+              AND e.courseId = :courseId
+              AND e.status = 'registered'
+              AND (e.academicYear < :academicYear
+                   OR (e.academicYear = :academicYear AND e.semester < :semester))
+            """)
+    boolean existsCompletedEnrollment(@Param("studentId") String studentId,
+                                      @Param("courseId") Integer courseId,
+                                      @Param("academicYear") Integer academicYear,
+                                      @Param("semester") Integer semester);
+
     /** เคยลงวิชานี้แล้วหรือยัง (ทุกสถานะ รวม W) */
     boolean existsByStudentIdAndCourseId(String studentId, Integer courseId);
 }
