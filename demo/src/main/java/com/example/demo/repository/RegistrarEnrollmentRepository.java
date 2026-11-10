@@ -6,9 +6,12 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.util.List;
+import java.util.Optional;
 
 public interface RegistrarEnrollmentRepository extends JpaRepository<RegistrarEnrollment, Integer> {
     List<RegistrarEnrollment> findByStudentId(String studentId);
+
+    Optional<RegistrarEnrollment> findByEnrollmentIdAndStudentId(Integer enrollmentId, String studentId);
 
     /**
      * ลงทะเบียนวิชานี้แล้วและยังไม่ติด F/U (ผ่านแล้ว หรือกำลังเรียน/ยังไม่ออกเกรด)

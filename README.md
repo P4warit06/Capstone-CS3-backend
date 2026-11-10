@@ -109,6 +109,30 @@ Use Postman to test and verify the backend REST APIs.
 Example: `GET http://localhost:8080/api/courses`
 For protected endpoints, include the required authentication token in the `Authorization` header.
 
+### Grade enrollment API
+
+`GET /v1/grades/enrollments` returns the authenticated student's enrollments whose registrar status is `registered`, including enrollments from past terms when their enrollment status remains `registered`. The response is `200 OK` with `[]` when no enrollments match. Items are ordered by academic year descending, semester descending, then course code ascending.
+
+`academicYear` is returned unchanged from `registrar_enrollments.academic_year`; the API does not convert between Buddhist Era and Common Era. `currentGrade` is `null` when no grade exists. If legacy duplicate grade rows exist, reads and updates consistently use the most recently updated row (`updated_at` descending, then `grade_id` descending). The database unique index script prevents new duplicates after it is applied.
+
+```json
+[
+  {
+    "enrollmentId": 214,
+    "courseId": 121,
+    "courseCode": "CSxxx",
+    "nameTh": "ชื่อวิชาภาษาไทย",
+    "nameEn": "Course name",
+    "academicYear": 2026,
+    "semester": 1,
+    "enrollmentStatus": "registered",
+    "currentGrade": "B+"
+  }
+]
+```
+
+Use `PUT /v1/grades` with `{ "enrollmentId": 214, "grade": "A" }` to create or update the grade. `enrollmentId` is required; `courseId` is not a substitute. Apply `demo/src/main/resources/db/manual/ensure_unique_grade_per_enrollment.sql` to PostgreSQL after resolving any duplicate grade rows.
+
 ## Environment Variables
 
 | Variable | Description | Example |
