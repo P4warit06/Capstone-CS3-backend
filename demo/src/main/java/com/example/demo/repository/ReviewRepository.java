@@ -11,6 +11,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface ReviewRepository extends JpaRepository<Review, Integer> {
@@ -26,6 +27,12 @@ public interface ReviewRepository extends JpaRepository<Review, Integer> {
     // SCRUM-206: รายการรีวิวของวิชา (ดึง user มาพร้อมกันเพื่อเอา displayName)
     @EntityGraph(attributePaths = "user")
     Page<Review> findByCourse_CourseIdAndStatus(Integer courseId, ReviewStatus status, Pageable pageable);
+
+    // SCRUM-203: 1 คน 1 รีวิวต่อวิชา (นับรวมรีวิวที่ถูกซ่อน)
+    boolean existsByUserIdAndCourse_CourseId(Integer userId, Integer courseId);
+
+    @EntityGraph(attributePaths = "user")
+    Optional<Review> findByUserIdAndCourse_CourseId(Integer userId, Integer courseId);
 
     @Query("""
             SELECT COUNT(r) AS reviewCount,
