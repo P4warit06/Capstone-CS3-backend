@@ -17,11 +17,12 @@ import java.util.Optional;
 public interface ReviewRepository extends JpaRepository<Review, Integer> {
 
     // นับเฉพาะรีวิวที่แสดงอยู่ (ใช้ในหน้า Track)
-    @Query("""
-            SELECT AVG(r.overallRating) FROM Review r
-            WHERE r.course.courseId = :courseId
-              AND r.status = com.example.demo.entity.ReviewStatus.visible
-            """)
+    @Query(value = """
+            SELECT AVG(overall_rating)
+            FROM reviews
+            WHERE course_id = :courseId
+              AND status = CAST('visible' AS review_status)
+            """, nativeQuery = true)
     Double getAverageRatingByCourseId(@Param("courseId") Integer courseId);
 
     // SCRUM-206: รายการรีวิวของวิชา (ดึง user มาพร้อมกันเพื่อเอา displayName)
