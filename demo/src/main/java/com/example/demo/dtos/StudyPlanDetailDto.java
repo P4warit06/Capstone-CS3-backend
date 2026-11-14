@@ -84,6 +84,30 @@ public class StudyPlanDetailDto {
         private CourseCategory category;
         private String status;
         private Integer studyPlanCourseId;
+        private Boolean isEligible;
+        private List<MissingPrerequisiteGroup> missingGroups;
+        private String prerequisiteNote;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class MissingPrerequisiteGroup {
+        private Integer groupNo;
+        private List<PrerequisiteCourse> courses;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class PrerequisiteCourse {
+        private Integer courseId;
+        private String courseCode;
+        private String nameTh;
+        private String nameEn;
+        private Boolean isCorequisite;
     }
 
     @Data

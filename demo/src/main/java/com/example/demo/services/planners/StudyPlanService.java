@@ -22,6 +22,7 @@ import com.example.demo.repository.CurriculumCategoryCourseRepository;
 import com.example.demo.repository.CourseRepository;
 import com.example.demo.repository.RegistrarEnrollmentRepository;
 import com.example.demo.repository.RegistrarStudentRepository;
+import com.example.demo.repository.StudentCourseGradeRepository;
 import com.example.demo.repository.StudyPlanCourseRepository;
 import com.example.demo.repository.StudyPlanRepository;
 import com.example.demo.repository.TrackCourseRepository;
@@ -58,7 +59,9 @@ public class StudyPlanService {
     private final TrackCourseRepository trackCourseRepository;
     private final StudyPlanCourseRepository studyPlanCourseRepository;
     private final RegistrarEnrollmentRepository registrarEnrollmentRepository;
+    private final StudentCourseGradeRepository studentCourseGradeRepository;
     private final StudyPlanCreditService studyPlanCreditService;
+    private final PrerequisiteValidationService prerequisiteValidationService;
 
     @Transactional(readOnly = true)
     public StudyPlanDetailDto getPlanById(String email, Integer planId) {
@@ -84,6 +87,9 @@ public class StudyPlanService {
                 .collect(Collectors.toSet());
         List<StudyPlanCourse> userCourses = studyPlanCourseRepository.findByStudyPlanStudyPlanId(planId);
         List<RegistrarEnrollment> enrollments = registrarEnrollmentRepository.findByStudentId(student.getStudentId());
+        Set<Integer> passedCourseIds = prerequisiteValidationService.findPassedCourseIds(enrollments,
+                enrollments.isEmpty() ? List.of() : studentCourseGradeRepository.findByEnrollmentIdIn(
+                        enrollments.stream().map(RegistrarEnrollment::getEnrollmentId).toList()));
 
         Map<Integer, Category> categoriesByCourse = new HashMap<>();
         Map<String, Category> categoriesByCode = new HashMap<>();
@@ -153,6 +159,21 @@ public class StudyPlanService {
                     toCourseDto(course, "registrar", false, categoriesByCourse.get(course.getCourseId()),
                             enrollment.getStatus(), null, trackLabel));
         }
+
+        Map<PrerequisiteValidationService.PlacementKey, PrerequisiteValidationService.ValidationResult>
+                prerequisiteValidations = prerequisiteValidationService.validate(
+                        placements.entrySet().stream()
+                                .map(entry -> new PrerequisiteValidationService.PlannedCourse(
+                                        entry.getKey().courseId(), entry.getKey().year(), entry.getKey().semester(),
+                                        entry.getValue().getStatus()))
+                                .toList(),
+                        passedCourseIds);
+        placements.forEach((key, course) -> {
+            PrerequisiteValidationService.ValidationResult validation = prerequisiteValidations.get(
+                    new PrerequisiteValidationService.PlacementKey(key.courseId(), key.year(), key.semester()));
+            course.setIsEligible(validation.isEligible());
+            course.setMissingGroups(validation.missingGroups());
+        });
 
         int maxYear = Math.max(4, placements.keySet().stream().mapToInt(PlacementKey::year).max().orElse(4));
         List<StudyPlanDetailDto.Year> years = new ArrayList<>();
@@ -322,12 +343,7 @@ public class StudyPlanService {
         plan.setUpdatedAt(LocalDateTime.now());
         studyPlanRepository.save(plan);
 
-        Category category = curriculumMappings.stream()
-                .filter(m -> m.getCourse().getCourseId().equals(courseId))
-                .map(m -> m.getCurriculumCategory().getCategory())
-                .findFirst()
-                .orElse(null);
-        return toCourseDto(course, "user", false, category, "planned", planCourse.getStudyPlanCourseId(), null);
+        return findPlanCourseInDetails(email, planId, planCourse.getStudyPlanCourseId());
     }
 
     /** SCRUM-172: ย้ายวิชาที่ผู้ใช้เพิ่มเองไปยังภาคเรียนในอนาคต */
@@ -389,16 +405,7 @@ public class StudyPlanService {
         plan.setUpdatedAt(LocalDateTime.now());
         studyPlanRepository.save(plan);
 
-        Category category = curriculumCategoryCourseRepository
-                .findByCurriculumCategoryCurriculumVersionCurriculumVersionId(
-                        plan.getCurriculumVersion().getCurriculumVersionId())
-                .stream()
-                .filter(mapping -> mapping.getCourse().getCourseId().equals(courseId))
-                .map(mapping -> mapping.getCurriculumCategory().getCategory())
-                .findFirst()
-                .orElse(null);
-        return toCourseDto(planCourse.getCourse(), "user", false, category, "planned",
-                planCourse.getStudyPlanCourseId(), null);
+        return findPlanCourseInDetails(email, planId, planCourse.getStudyPlanCourseId());
     }
 
     /** SCRUM-172: ลบวิชาที่ผู้ใช้เพิ่มเองได้ทุกภาคเรียน */
@@ -464,7 +471,18 @@ public class StudyPlanService {
                         .build())
                 .status(status)
                 .studyPlanCourseId(planCourseId)
+                .prerequisiteNote(course.getPrerequisiteNote())
                 .build();
+    }
+
+    private StudyPlanDetailDto.Course findPlanCourseInDetails(String email, Integer planId,
+                                                               Integer studyPlanCourseId) {
+        return getPlanById(email, planId).getYears().stream()
+                .flatMap(year -> year.getSemesters().stream())
+                .flatMap(semester -> semester.getCourses().stream())
+                .filter(course -> Objects.equals(course.getStudyPlanCourseId(), studyPlanCourseId))
+                .findFirst()
+                .orElseThrow(() -> new IllegalStateException("Saved course was not found in the study plan"));
     }
 
     private Course findCourseForEnrollment(RegistrarEnrollment enrollment,
@@ -585,11 +603,14 @@ public class StudyPlanService {
                 .toList();
 
         if (Boolean.TRUE.equals(plan.getIsDefault()) && !remainingPlans.isEmpty()) {
-            remainingPlans.get(0).setIsDefault(true);
+            plan.setIsDefault(false);
+            studyPlanRepository.flush();
+            remainingPlans.getFirst().setIsDefault(true);
         }
 
         studyPlanCourseRepository.deleteAll(studyPlanCourseRepository.findByStudyPlanStudyPlanId(planId));
         studyPlanRepository.delete(plan);
+        studyPlanRepository.flush();
     }
 
     @Transactional
