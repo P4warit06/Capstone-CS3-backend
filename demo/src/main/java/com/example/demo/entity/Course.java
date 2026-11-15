@@ -3,8 +3,10 @@ package com.example.demo.entity;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
+
 import java.time.LocalDateTime;
 import java.util.List;
+
 @Getter
 @Setter
 @Entity
@@ -33,6 +35,9 @@ public class Course {
 
     @Column(name = "description_en", columnDefinition = "text")
     private String descriptionEn;
+
+    @Column(name = "prerequisite_note", columnDefinition = "text")
+    private String prerequisiteNote;
 
     @Column(name = "is_active", nullable = false)
     private Boolean isActive = true;
