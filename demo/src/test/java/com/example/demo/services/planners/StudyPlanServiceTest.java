@@ -22,9 +22,14 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.util.List;
 import java.util.Optional;
 
+import java.util.ArrayList;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -108,6 +113,49 @@ class StudyPlanServiceTest {
         order.verify(studyPlanRepository).delete(defaultPlan);
         order.verify(studyPlanRepository).flush();
         verify(studyPlanRepository).findOwnedPlanById(10, 8);
+    }
+
+    // SCRUM-242: ต้องยกเลิกแผนหลักเดิมแล้ว flush ก่อน ค่อยตั้งแผนใหม่ (unique index บน is_default)
+    @Test
+    void clearsAndFlushesTheOldDefaultBeforeSettingTheNewOne() {
+        User user = new User();
+        user.setId(8);
+        StudyPlan oldDefault = plan(10, true);
+        StudyPlan target = plan(11, false);
+
+        when(userRepository.findByEmailIgnoreCase("student@example.com")).thenReturn(Optional.of(user));
+        when(studyPlanRepository.findOwnedPlanById(11, 8)).thenReturn(Optional.of(target));
+        when(studyPlanRepository.findByUserIdCustomOrder(8)).thenReturn(List.of(oldDefault, target));
+
+        // จำจำนวนแผนหลักตอน flush แต่ละครั้ง
+        List<Long> defaultCountAtFlush = new ArrayList<>();
+        doAnswer(invocation -> {
+            defaultCountAtFlush.add(List.of(oldDefault, target).stream()
+                    .filter(p -> Boolean.TRUE.equals(p.getIsDefault())).count());
+            return null;
+        }).when(studyPlanRepository).flush();
+
+        var result = studyPlanService.setDefaultPlan("student@example.com", 11);
+
+        assertFalse(oldDefault.getIsDefault());
+        assertTrue(target.getIsDefault());
+        assertTrue(result.getIsDefault());
+        assertEquals(List.of(0L, 1L), defaultCountAtFlush);
+    }
+
+    @Test
+    void settingTheCurrentDefaultAgainDoesNothing() {
+        User user = new User();
+        user.setId(8);
+        StudyPlan currentDefault = plan(10, true);
+
+        when(userRepository.findByEmailIgnoreCase("student@example.com")).thenReturn(Optional.of(user));
+        when(studyPlanRepository.findOwnedPlanById(10, 8)).thenReturn(Optional.of(currentDefault));
+
+        var result = studyPlanService.setDefaultPlan("student@example.com", 10);
+
+        assertTrue(result.getIsDefault());
+        verify(studyPlanRepository, never()).flush();
     }
 
     private StudyPlan plan(int planId, boolean isDefault) {

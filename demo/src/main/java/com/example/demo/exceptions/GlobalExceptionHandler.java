@@ -1,5 +1,8 @@
 package com.example.demo.exceptions;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -10,6 +13,8 @@ import java.util.Map;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+    private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
     @ExceptionHandler(CourseNotFoundException.class)
     public ResponseEntity<Map> handleCourseNotFound(CourseNotFoundException ex) {
@@ -40,5 +45,13 @@ public class GlobalExceptionHandler {
     public ResponseEntity<Map<String, String>> handleReviewException(ReviewException ex) {
         return ResponseEntity.status(ex.getStatus())
                 .body(Map.of("code", ex.getCode(), "message", ex.getMessage()));
+    }
+
+    // SCRUM-242: ข้อมูลชน constraint ใน DB — log รายละเอียดไว้ฝั่ง server ไม่ส่ง SQL error กลับไปให้ FE
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ResponseEntity<Map<String, String>> handleDataIntegrityViolation(DataIntegrityViolationException ex) {
+        log.error("Data integrity violation", ex);
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(Map.of("message", "บันทึกข้อมูลไม่สำเร็จ กรุณาลองใหม่อีกครั้ง"));
     }
 }

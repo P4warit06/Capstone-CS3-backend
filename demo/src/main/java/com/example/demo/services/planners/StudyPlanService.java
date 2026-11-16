@@ -586,11 +586,23 @@ public class StudyPlanService {
         User currentUser = findUserByEmail(email);
         StudyPlan plan = findOwnedPlan(currentUser, planId);
 
-        List<StudyPlan> userPlans = studyPlanRepository.findByUserIdCustomOrder(currentUser.getId());
-        for (StudyPlan userPlan : userPlans) {
-            userPlan.setIsDefault(userPlan.getStudyPlanId().equals(planId));
+        // SCRUM-242: เป็นแผนหลักอยู่แล้ว ไม่ต้องทำอะไร
+        if (Boolean.TRUE.equals(plan.getIsDefault())) {
+            return mapToPlanDto(plan);
         }
 
+        // DB มี unique index บน is_default ต่อ user → ต้องยกเลิกแผนหลักเดิมแล้ว flush ก่อน
+        // ไม่งั้น Hibernate อาจ UPDATE แผนใหม่เป็น true ก่อน แล้วชน constraint
+        List<StudyPlan> userPlans = studyPlanRepository.findByUserIdCustomOrder(currentUser.getId());
+        for (StudyPlan userPlan : userPlans) {
+            if (Boolean.TRUE.equals(userPlan.getIsDefault())) {
+                userPlan.setIsDefault(false);
+            }
+        }
+        studyPlanRepository.flush();
+
+        plan.setIsDefault(true);
+        studyPlanRepository.flush();
         return mapToPlanDto(plan);
     }
 
