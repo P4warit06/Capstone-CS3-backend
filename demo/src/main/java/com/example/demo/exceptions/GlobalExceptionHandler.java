@@ -32,22 +32,18 @@ public class GlobalExceptionHandler {
                 .body(Map.of("message", ex.getMessage()));
     }
 
-    // ส่ง reason ของ ResponseStatusException กลับเป็น {"message": ...} ให้ FE เอาไปแสดงได้
-    // (ค่าเริ่มต้นของ Spring ไม่ส่งข้อความกลับไป)
     @ExceptionHandler(ResponseStatusException.class)
     public ResponseEntity<Map<String, String>> handleResponseStatus(ResponseStatusException ex) {
         String message = ex.getReason() != null ? ex.getReason() : ex.getStatusCode().toString();
         return ResponseEntity.status(ex.getStatusCode()).body(Map.of("message", message));
     }
 
-    // SCRUM-203: {"code": "ALREADY_REVIEWED", "message": "..."}
     @ExceptionHandler(ReviewException.class)
     public ResponseEntity<Map<String, String>> handleReviewException(ReviewException ex) {
         return ResponseEntity.status(ex.getStatus())
                 .body(Map.of("code", ex.getCode(), "message", ex.getMessage()));
     }
 
-    // SCRUM-242: ข้อมูลชน constraint ใน DB — log รายละเอียดไว้ฝั่ง server ไม่ส่ง SQL error กลับไปให้ FE
     @ExceptionHandler(DataIntegrityViolationException.class)
     public ResponseEntity<Map<String, String>> handleDataIntegrityViolation(DataIntegrityViolationException ex) {
         log.error("Data integrity violation", ex);

@@ -115,7 +115,6 @@ class StudyPlanServiceTest {
         verify(studyPlanRepository).findOwnedPlanById(10, 8);
     }
 
-    // SCRUM-242: ต้องยกเลิกแผนหลักเดิมแล้ว flush ก่อน ค่อยตั้งแผนใหม่ (unique index บน is_default)
     @Test
     void clearsAndFlushesTheOldDefaultBeforeSettingTheNewOne() {
         User user = new User();
@@ -127,7 +126,6 @@ class StudyPlanServiceTest {
         when(studyPlanRepository.findOwnedPlanById(11, 8)).thenReturn(Optional.of(target));
         when(studyPlanRepository.findByUserIdCustomOrder(8)).thenReturn(List.of(oldDefault, target));
 
-        // จำจำนวนแผนหลักตอน flush แต่ละครั้ง
         List<Long> defaultCountAtFlush = new ArrayList<>();
         doAnswer(invocation -> {
             defaultCountAtFlush.add(List.of(oldDefault, target).stream()
