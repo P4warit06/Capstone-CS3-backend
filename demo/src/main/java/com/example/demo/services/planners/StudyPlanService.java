@@ -22,7 +22,6 @@ import com.example.demo.repository.CurriculumCategoryCourseRepository;
 import com.example.demo.repository.CourseRepository;
 import com.example.demo.repository.RegistrarEnrollmentRepository;
 import com.example.demo.repository.RegistrarStudentRepository;
-import com.example.demo.repository.StudentCourseGradeRepository;
 import com.example.demo.repository.StudyPlanCourseRepository;
 import com.example.demo.repository.StudyPlanRepository;
 import com.example.demo.repository.TrackCourseRepository;
@@ -59,7 +58,6 @@ public class StudyPlanService {
     private final TrackCourseRepository trackCourseRepository;
     private final StudyPlanCourseRepository studyPlanCourseRepository;
     private final RegistrarEnrollmentRepository registrarEnrollmentRepository;
-    private final StudentCourseGradeRepository studentCourseGradeRepository;
     private final StudyPlanCreditService studyPlanCreditService;
     private final PrerequisiteValidationService prerequisiteValidationService;
 
@@ -87,9 +85,6 @@ public class StudyPlanService {
                 .collect(Collectors.toSet());
         List<StudyPlanCourse> userCourses = studyPlanCourseRepository.findByStudyPlanStudyPlanId(planId);
         List<RegistrarEnrollment> enrollments = registrarEnrollmentRepository.findByStudentId(student.getStudentId());
-        Set<Integer> passedCourseIds = prerequisiteValidationService.findPassedCourseIds(enrollments,
-                enrollments.isEmpty() ? List.of() : studentCourseGradeRepository.findByEnrollmentIdIn(
-                        enrollments.stream().map(RegistrarEnrollment::getEnrollmentId).toList()));
 
         Map<Integer, Category> categoriesByCourse = new HashMap<>();
         Map<String, Category> categoriesByCode = new HashMap<>();
@@ -160,14 +155,26 @@ public class StudyPlanService {
                             enrollment.getStatus(), null, trackLabel));
         }
 
+        List<PrerequisiteValidationService.PlannedCourse> prerequisiteTargets = placements.entrySet().stream()
+                .map(entry -> new PrerequisiteValidationService.PlannedCourse(
+                        entry.getKey().courseId(), entry.getKey().year(), entry.getKey().semester(),
+                        entry.getValue().getStatus()))
+                .toList();
+        Map<AcademicTerm, Set<Integer>> registeredCourseIdsByTerm = new HashMap<>();
+        Map<PrerequisiteValidationService.PlacementKey, Set<Integer>> registeredCourseIdsByPlacement =
+                new HashMap<>();
+        for (PrerequisiteValidationService.PlannedCourse target : prerequisiteTargets) {
+            AcademicTerm term = new AcademicTerm(
+                    student.getAdmissionYear() + target.studyYear() - 1, target.studySemester());
+            Set<Integer> registeredCourseIds = registeredCourseIdsByTerm.computeIfAbsent(term,
+                    key -> Set.copyOf(registrarEnrollmentRepository.findRegisteredCourseIdsBeforeTerm(
+                            student.getStudentId(), key.academicYear(), key.semester())));
+            registeredCourseIdsByPlacement.put(new PrerequisiteValidationService.PlacementKey(
+                    target.courseId(), target.studyYear(), target.studySemester()), registeredCourseIds);
+        }
         Map<PrerequisiteValidationService.PlacementKey, PrerequisiteValidationService.ValidationResult>
                 prerequisiteValidations = prerequisiteValidationService.validate(
-                        placements.entrySet().stream()
-                                .map(entry -> new PrerequisiteValidationService.PlannedCourse(
-                                        entry.getKey().courseId(), entry.getKey().year(), entry.getKey().semester(),
-                                        entry.getValue().getStatus()))
-                                .toList(),
-                        passedCourseIds);
+                        prerequisiteTargets, registeredCourseIdsByPlacement);
         placements.forEach((key, course) -> {
             PrerequisiteValidationService.ValidationResult validation = prerequisiteValidations.get(
                     new PrerequisiteValidationService.PlacementKey(key.courseId(), key.year(), key.semester()));
@@ -471,7 +478,6 @@ public class StudyPlanService {
                         .build())
                 .status(status)
                 .studyPlanCourseId(planCourseId)
-                .prerequisiteNote(course.getPrerequisiteNote())
                 .build();
     }
 
@@ -517,6 +523,8 @@ public class StudyPlanService {
     }
 
     private record PlacementKey(Integer courseId, Integer year, Integer semester) {}
+
+    private record AcademicTerm(int academicYear, int semester) {}
 
     @Transactional
     public PlanListResponseDto getUserPlansByEmail(String email) {

@@ -6,7 +6,6 @@ import com.example.demo.repository.CurriculumCategoryCourseRepository;
 import com.example.demo.repository.CourseRepository;
 import com.example.demo.repository.RegistrarEnrollmentRepository;
 import com.example.demo.repository.RegistrarStudentRepository;
-import com.example.demo.repository.StudentCourseGradeRepository;
 import com.example.demo.repository.StudyPlanCourseRepository;
 import com.example.demo.repository.StudyPlanRepository;
 import com.example.demo.repository.TrackCourseRepository;
@@ -19,10 +18,9 @@ import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
-
-import java.util.ArrayList;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -64,9 +62,6 @@ class StudyPlanServiceTest {
     private RegistrarEnrollmentRepository registrarEnrollmentRepository;
 
     @Mock
-    private StudentCourseGradeRepository studentCourseGradeRepository;
-
-    @Mock
     private StudyPlanCreditService studyPlanCreditService;
 
     @Mock
@@ -86,7 +81,6 @@ class StudyPlanServiceTest {
                 trackCourseRepository,
                 studyPlanCourseRepository,
                 registrarEnrollmentRepository,
-                studentCourseGradeRepository,
                 studyPlanCreditService,
                 prerequisiteValidationService);
     }

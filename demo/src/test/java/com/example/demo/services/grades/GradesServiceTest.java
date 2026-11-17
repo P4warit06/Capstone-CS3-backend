@@ -107,4 +107,29 @@ class GradesServiceTest {
         assertEquals(409, exception.getStatusCode().value());
         verify(studentCourseGradeRepository, never()).saveAndFlush(any(StudentCourseGrade.class));
     }
+
+    @Test
+    void deletesGradeForTheAuthenticatedStudentsEnrollment() {
+        RegistrarEnrollment enrollment = new RegistrarEnrollment();
+        enrollment.setEnrollmentId(214);
+        enrollment.setStatus("registered");
+        when(registrarEnrollmentRepository.findByEnrollmentIdAndStudentId(214, "034"))
+                .thenReturn(Optional.of(enrollment));
+
+        gradesService.deleteGrade("student@example.com", 214);
+
+        verify(studentCourseGradeRepository).deleteByEnrollmentId(214);
+    }
+
+    @Test
+    void doesNotDeleteGradeForAnotherStudentsEnrollment() {
+        when(registrarEnrollmentRepository.findByEnrollmentIdAndStudentId(214, "034"))
+                .thenReturn(Optional.empty());
+
+        ResponseStatusException exception = assertThrows(ResponseStatusException.class,
+                () -> gradesService.deleteGrade("student@example.com", 214));
+
+        assertEquals(404, exception.getStatusCode().value());
+        verify(studentCourseGradeRepository, never()).deleteByEnrollmentId(214);
+    }
 }

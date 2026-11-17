@@ -1,8 +1,6 @@
 package com.example.demo.services.planners;
 
 import com.example.demo.dtos.StudyPlanDetailDto;
-import com.example.demo.entity.RegistrarEnrollment;
-import com.example.demo.entity.StudentCourseGrade;
 import com.example.demo.repository.CoursePrerequisiteRepository;
 import com.example.demo.repository.CoursePrerequisiteRepository.CoursePrerequisiteView;
 import lombok.RequiredArgsConstructor;
@@ -11,7 +9,6 @@ import org.springframework.stereotype.Service;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -21,50 +18,11 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class PrerequisiteValidationService {
 
-    private static final Set<String> PASSING_GRADES = Set.of("A", "B+", "B", "C+", "C", "D+", "D", "S");
-
     private final CoursePrerequisiteRepository coursePrerequisiteRepository;
 
-    public Set<Integer> findPassedCourseIds(List<RegistrarEnrollment> enrollments,
-                                            List<StudentCourseGrade> grades) {
-        if (enrollments.isEmpty()) {
-            return Set.of();
-        }
-
-        Map<Integer, StudentCourseGrade> latestGradesByEnrollment = new HashMap<>();
-        Comparator<StudentCourseGrade> gradeOrder = Comparator
-                .comparing(StudentCourseGrade::getUpdatedAt,
-                        Comparator.nullsFirst(Comparator.naturalOrder()))
-                .thenComparing(StudentCourseGrade::getGradeId,
-                        Comparator.nullsFirst(Comparator.naturalOrder()));
-        for (StudentCourseGrade grade : grades) {
-            latestGradesByEnrollment.merge(grade.getEnrollmentId(), grade,
-                    (current, candidate) -> gradeOrder.compare(current, candidate) < 0 ? candidate : current);
-        }
-
-        Map<Integer, RegistrarEnrollment> latestEnrollmentByCourse = new HashMap<>();
-        Comparator<RegistrarEnrollment> enrollmentOrder = Comparator
-                .comparing(RegistrarEnrollment::getAcademicYear)
-                .thenComparing(RegistrarEnrollment::getSemester)
-                .thenComparing(RegistrarEnrollment::getEnrollmentId);
-        for (RegistrarEnrollment enrollment : enrollments) {
-            latestEnrollmentByCourse.merge(enrollment.getCourseId(), enrollment,
-                    (current, candidate) -> enrollmentOrder.compare(current, candidate) < 0 ? candidate : current);
-        }
-
-        Set<Integer> passedCourseIds = new HashSet<>();
-        for (RegistrarEnrollment enrollment : latestEnrollmentByCourse.values()) {
-            StudentCourseGrade grade = latestGradesByEnrollment.get(enrollment.getEnrollmentId());
-            if ("registered".equalsIgnoreCase(enrollment.getStatus())
-                    && grade != null && isPassingGrade(grade.getGrade())) {
-                passedCourseIds.add(enrollment.getCourseId());
-            }
-        }
-        return passedCourseIds;
-    }
-
     public Map<PlacementKey, ValidationResult> validate(
-            Collection<PlannedCourse> plannedCourses, Set<Integer> passedCourseIds) {
+            Collection<PlannedCourse> plannedCourses,
+            Map<PlacementKey, Set<Integer>> registeredCourseIdsByPlacement) {
         List<Integer> courseIds = plannedCourses.stream()
                 .map(PlannedCourse::courseId)
                 .distinct()
@@ -86,7 +44,10 @@ public class PrerequisiteValidationService {
             List<StudyPlanDetailDto.MissingPrerequisiteGroup> missingGroups = groups.entrySet().stream()
                     .sorted(Map.Entry.comparingByKey())
                     .filter(group -> group.getValue().stream().noneMatch(prerequisite ->
-                            passedCourseIds.contains(prerequisite.getPrerequisiteCourseId())
+                            registeredCourseIdsByPlacement.getOrDefault(
+                                            new PlacementKey(target.courseId(), target.studyYear(), target.studySemester()),
+                                            Set.of())
+                                    .contains(prerequisite.getPrerequisiteCourseId())
                                     || isPlannedInTime(prerequisite, target, plannedCourses)))
                     .map(group -> StudyPlanDetailDto.MissingPrerequisiteGroup.builder()
                             .groupNo(group.getKey())
@@ -123,14 +84,6 @@ public class PrerequisiteValidationService {
     private int compareTerms(int firstYear, int firstSemester, int secondYear, int secondSemester) {
         int yearComparison = Integer.compare(firstYear, secondYear);
         return yearComparison != 0 ? yearComparison : Integer.compare(firstSemester, secondSemester);
-    }
-
-    private boolean isPassingGrade(String grade) {
-        if (grade == null) {
-            return false;
-        }
-        String normalizedGrade = grade.trim().toUpperCase(java.util.Locale.ROOT);
-        return PASSING_GRADES.contains(normalizedGrade);
     }
 
     private StudyPlanDetailDto.PrerequisiteCourse toPrerequisiteCourse(CoursePrerequisiteView prerequisite) {
