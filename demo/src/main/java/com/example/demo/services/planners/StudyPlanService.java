@@ -586,11 +586,20 @@ public class StudyPlanService {
         User currentUser = findUserByEmail(email);
         StudyPlan plan = findOwnedPlan(currentUser, planId);
 
-        List<StudyPlan> userPlans = studyPlanRepository.findByUserIdCustomOrder(currentUser.getId());
-        for (StudyPlan userPlan : userPlans) {
-            userPlan.setIsDefault(userPlan.getStudyPlanId().equals(planId));
+        if (Boolean.TRUE.equals(plan.getIsDefault())) {
+            return mapToPlanDto(plan);
         }
 
+        List<StudyPlan> userPlans = studyPlanRepository.findByUserIdCustomOrder(currentUser.getId());
+        for (StudyPlan userPlan : userPlans) {
+            if (Boolean.TRUE.equals(userPlan.getIsDefault())) {
+                userPlan.setIsDefault(false);
+            }
+        }
+        studyPlanRepository.flush();
+
+        plan.setIsDefault(true);
+        studyPlanRepository.flush();
         return mapToPlanDto(plan);
     }
 
