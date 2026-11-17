@@ -86,7 +86,6 @@ public class StudyPlanDetailDto {
         private Integer studyPlanCourseId;
         private Boolean isEligible;
         private List<MissingPrerequisiteGroup> missingGroups;
-        private String prerequisiteNote;
     }
 
     @Data

@@ -73,6 +73,18 @@ public class GradesService {
                 .orElseThrow(() -> new IllegalStateException("Saved grade could not be retrieved"));
     }
 
+    @Transactional
+    public void deleteGrade(String email, Integer enrollmentId) {
+        if (enrollmentId == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "enrollmentId is required");
+        }
+
+        User user = findStudentUser(email);
+        registrarEnrollmentRepository.findByEnrollmentIdAndStudentId(enrollmentId, user.getStudentId())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Enrollment not found"));
+        studentCourseGradeRepository.deleteByEnrollmentId(enrollmentId);
+    }
+
     private User findStudentUser(String email) {
         User user = userRepository.findByEmailIgnoreCase(email)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));

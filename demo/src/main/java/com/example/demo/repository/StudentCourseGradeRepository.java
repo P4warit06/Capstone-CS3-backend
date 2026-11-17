@@ -15,7 +15,7 @@ import java.util.Optional;
 public interface StudentCourseGradeRepository extends JpaRepository<StudentCourseGrade, Integer> {
     Optional<StudentCourseGrade> findFirstByEnrollmentIdOrderByUpdatedAtDescGradeIdDesc(Integer enrollmentId);
 
-    List<StudentCourseGrade> findByEnrollmentIdIn(List<Integer> enrollmentIds);
+    void deleteByEnrollmentId(Integer enrollmentId);
 
     @Query(value = """
             SELECT e.enrollment_id AS "enrollmentId",

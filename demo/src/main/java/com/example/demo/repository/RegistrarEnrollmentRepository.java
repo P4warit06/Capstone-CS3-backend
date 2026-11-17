@@ -30,21 +30,22 @@ public interface RegistrarEnrollmentRepository extends JpaRepository<RegistrarEn
             """, nativeQuery = true)
     boolean existsActiveEnrollment(@Param("studentId") String studentId, @Param("courseId") Integer courseId);
 
-    /**
-     * SCRUM-203: ลงทะเบียนวิชานี้จริง (ไม่ใช่ W) ในเทอมที่จบแล้ว — ก่อน (currentAcademicYear, currentSemester)
-     */
+    /** SCRUM-189: รายวิชาที่ลงทะเบียนจริงในเทอมก่อนหน้า (ไม่รวม withdrawn) */
     @Query("""
-            SELECT COUNT(e) > 0 FROM RegistrarEnrollment e
+            SELECT DISTINCT e.courseId FROM RegistrarEnrollment e
             WHERE e.studentId = :studentId
-              AND e.courseId = :courseId
               AND e.status = 'registered'
               AND (e.academicYear < :academicYear
                    OR (e.academicYear = :academicYear AND e.semester < :semester))
             """)
-    boolean existsCompletedEnrollment(@Param("studentId") String studentId,
-                                      @Param("courseId") Integer courseId,
-                                      @Param("academicYear") Integer academicYear,
-                                      @Param("semester") Integer semester);
+    List<Integer> findRegisteredCourseIdsBeforeTerm(@Param("studentId") String studentId,
+                                                    @Param("academicYear") Integer academicYear,
+                                                    @Param("semester") Integer semester);
+
+    default boolean existsCompletedEnrollment(String studentId, Integer courseId,
+                                              Integer academicYear, Integer semester) {
+        return findRegisteredCourseIdsBeforeTerm(studentId, academicYear, semester).contains(courseId);
+    }
 
     /** เคยลงวิชานี้แล้วหรือยัง (ทุกสถานะ รวม W) */
     boolean existsByStudentIdAndCourseId(String studentId, Integer courseId);
