@@ -1,22 +1,29 @@
 package com.example.demo.controllers;
+
 import com.example.demo.dtos.CourseDetailDto;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
+import com.example.demo.dtos.CourseDto;
+import com.example.demo.dtos.PagedResponseDto;
+import com.example.demo.entity.Course;
+import com.example.demo.services.courses.CoursesService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.Sort;
-import com.example.demo.services.courses.CoursesService;
-import com.example.demo.entity.Course;
-import com.example.demo.dtos.CourseDto;
-import com.example.demo.dtos.PagedResponseDto;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
+
 import java.util.Collections;
+import java.util.Set;
 
 
 @RestController
 @RequestMapping("/v1/courses")
 public class CoursesController {
+
+    private static final Set<String> ALLOWED_SORTS = Set.of(
+            "courseCode,asc", "courseCode,desc", "rating,desc", "reviewCount,desc");
 
     @Autowired
     private CoursesService coursesService;
@@ -29,12 +36,13 @@ public class CoursesController {
             @RequestParam(required = false) String q,
             @RequestParam(required = false) String category) {
 
-        // Parse sort parameter (e.g., "courseCode,asc")
-        String[] sortParts = sort.split(",");
-        Sort sorting = Sort.by(sortParts[1].equalsIgnoreCase("desc") ? Sort.Direction.DESC : Sort.Direction.ASC, sortParts[0]);
+        if (!ALLOWED_SORTS.contains(sort)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "Invalid sort. Allowed values: courseCode,asc; courseCode,desc; rating,desc; reviewCount,desc");
+        }
 
-        Pageable pageable = PageRequest.of(page, size, sorting);
-        Page<CourseDto> coursePage = coursesService.getAllCourses(q, category, pageable);
+        Pageable pageable = PageRequest.of(page, size);
+        Page<CourseDto> coursePage = coursesService.getAllCourses(q, category, sort, pageable);
 
         // Out-of-bounds page handling
         if (page >= coursePage.getTotalPages() && coursePage.getTotalPages() > 0) {
