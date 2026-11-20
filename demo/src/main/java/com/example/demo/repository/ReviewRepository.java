@@ -16,6 +16,23 @@ import java.util.Optional;
 @Repository
 public interface ReviewRepository extends JpaRepository<Review, Integer> {
 
+    @Query("""
+            SELECT r.course.courseId AS courseId,
+                   COUNT(r) AS reviewCount,
+                   AVG(r.overallRating) AS averageRating
+            FROM Review r
+            WHERE r.course.courseId IN :courseIds AND r.status = :status
+            GROUP BY r.course.courseId
+            """)
+    List<CourseReviewStatsView> getStatsByCourseIds(@Param("courseIds") List<Integer> courseIds,
+                                                    @Param("status") ReviewStatus status);
+
+    interface CourseReviewStatsView {
+        Integer getCourseId();
+        Long getReviewCount();
+        Double getAverageRating();
+    }
+
     // นับเฉพาะรีวิวที่แสดงอยู่ (ใช้ในหน้า Track)
     @Query(value = """
             SELECT AVG(overall_rating)

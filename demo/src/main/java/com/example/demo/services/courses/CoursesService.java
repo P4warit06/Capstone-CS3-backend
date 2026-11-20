@@ -9,7 +9,9 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import com.example.demo.entity.Course;
 import com.example.demo.entity.Category;
+import com.example.demo.entity.ReviewStatus;
 import com.example.demo.repository.CourseRepository;
+import com.example.demo.repository.ReviewRepository;
 import com.example.demo.dtos.CourseDto;
 import com.example.demo.dtos.CategoryDto;
 
@@ -18,6 +20,9 @@ public class CoursesService {
 
     @Autowired
     private CourseRepository courseRepository;
+
+    @Autowired
+    private ReviewRepository reviewRepository;
 
     public Page<CourseDto> getAllCourses(Pageable pageable) {
         return getAllCourses(null, pageable);
@@ -44,7 +49,8 @@ public class CoursesService {
         } else {
             coursePage = courseRepository.findAll(pageable);
         }
-        return coursePage.map(this::mapToCourseDto);
+        Map<Integer, ReviewRepository.CourseReviewStatsView> reviewStatsByCourseId = getReviewStats(coursePage.getContent());
+        return coursePage.map(course -> mapToCourseDto(course, reviewStatsByCourseId.get(course.getCourseId())));
     }
 
     private List<String> parseCategoryCodes(String category) {
@@ -60,6 +66,32 @@ public class CoursesService {
     }
 
     public CourseDto mapToCourseDto(Course course) {
+        Map<Integer, ReviewRepository.CourseReviewStatsView> reviewStatsByCourseId = getReviewStats(List.of(course));
+        return mapToCourseDto(course, reviewStatsByCourseId.get(course.getCourseId()));
+    }
+
+    public List<CourseDto> mapToCourseDtos(List<Course> courses) {
+        Map<Integer, ReviewRepository.CourseReviewStatsView> reviewStatsByCourseId = getReviewStats(courses);
+        return courses.stream()
+                .map(course -> mapToCourseDto(course, reviewStatsByCourseId.get(course.getCourseId())))
+                .toList();
+    }
+
+    private Map<Integer, ReviewRepository.CourseReviewStatsView> getReviewStats(List<Course> courses) {
+        List<Integer> courseIds = courses.stream()
+                .map(Course::getCourseId)
+                .filter(Objects::nonNull)
+                .toList();
+        if (courseIds.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        Map<Integer, ReviewRepository.CourseReviewStatsView> reviewStatsByCourseId = new HashMap<>();
+        reviewRepository.getStatsByCourseIds(courseIds, ReviewStatus.visible)
+                .forEach(stats -> reviewStatsByCourseId.put(stats.getCourseId(), stats));
+        return reviewStatsByCourseId;
+    }
+
+    private CourseDto mapToCourseDto(Course course, ReviewRepository.CourseReviewStatsView reviewStats) {
         List<String> tags = course.getCourseTags() == null ? Collections.emptyList() :
                 course.getCourseTags().stream()
                         .map(ct -> ct.getTag().getTagName())
@@ -88,6 +120,8 @@ public class CoursesService {
                 course.getCredits(),
                 course.getIsActive(),
                 tags,
+                reviewStats == null ? null : round1(reviewStats.getAverageRating()),
+                reviewStats == null || reviewStats.getReviewCount() == null ? 0L : reviewStats.getReviewCount(),
                 categories
         );
     }
@@ -155,5 +189,9 @@ public class CoursesService {
 
     public void deleteCourse(Long id) {
         courseRepository.deleteById(Long.valueOf(id));
+    }
+
+    private static Double round1(Double value) {
+        return value == null ? null : Math.round(value * 10) / 10.0;
     }
 }

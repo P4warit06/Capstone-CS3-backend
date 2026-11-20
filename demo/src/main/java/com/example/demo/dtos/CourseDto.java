@@ -14,11 +14,14 @@ public class CourseDto {
     private Integer credits;
     private Boolean isActive;
     private List<String> tags;
+    private Double averageRating;
+    private Long reviewCount;
     private List<CategoryDto> categories;
 
     public CourseDto() {}
 
-    public CourseDto(Long id, String courseCode, String nameTh, String nameEn, Integer credits, Boolean isActive, List<String> tags, List<CategoryDto> categories) {
+    public CourseDto(Long id, String courseCode, String nameTh, String nameEn, Integer credits, Boolean isActive,
+                     List<String> tags, Double averageRating, Long reviewCount, List<CategoryDto> categories) {
         this.id = id;
         this.courseCode = courseCode;
         this.nameTh = nameTh;
@@ -26,6 +29,8 @@ public class CourseDto {
         this.credits = credits;
         this.isActive = isActive;
         this.tags = tags;
+        this.averageRating = averageRating;
+        this.reviewCount = reviewCount;
         this.categories = categories;
     }
 }

@@ -33,12 +33,12 @@ public class SavedCourseService {
     @Transactional(readOnly = true)
     public List<CourseDto> getSavedCourses(Integer userId) {
         ensureUserExists(userId);
-        return savedCourseRepository
+        List<Course> courses = savedCourseRepository
                 .findByUser_IdOrderByCreatedAtDescSavedCourseIdDesc(userId)
                 .stream()
                 .map(SavedCourse::getCourse)
-                .map(coursesService::mapToCourseDto)
                 .toList();
+        return coursesService.mapToCourseDtos(courses);
     }
 
     @Transactional
