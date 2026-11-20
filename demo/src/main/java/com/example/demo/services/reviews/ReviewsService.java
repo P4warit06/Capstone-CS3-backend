@@ -2,11 +2,14 @@ package com.example.demo.services.reviews;
 
 import com.example.demo.dtos.CourseReviewsResponseDto;
 import com.example.demo.dtos.CreateReviewRequestDto;
+import com.example.demo.dtos.MyReviewDto;
 import com.example.demo.dtos.MyReviewStatusDto;
 import com.example.demo.dtos.PagedResponseDto;
 import com.example.demo.dtos.ReviewDto;
 import com.example.demo.dtos.ReviewSummaryDto;
+import com.example.demo.dtos.ReviewableCourseDto;
 import com.example.demo.entity.Course;
+import com.example.demo.entity.RegistrarEnrollment;
 import com.example.demo.entity.Review;
 import com.example.demo.entity.RegistrarStudent;
 import com.example.demo.entity.ReviewStatus;
@@ -30,7 +33,13 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -44,8 +53,7 @@ public class ReviewsService {
     private final UserRepository userRepository;
     private final RegistrarStudentRepository registrarStudentRepository;
     private final RegistrarEnrollmentRepository registrarEnrollmentRepository;
-
-    /** SCRUM-206: สรุปคะแนน + รายการรีวิว (แบ่งหน้า) ของวิชา นับเฉพาะ status = visible */
+    
     @Transactional(readOnly = true)
     public CourseReviewsResponseDto getCourseReviews(String courseCode, int page, int size, String sort) {
         if (page < 0) {
@@ -72,7 +80,6 @@ public class ReviewsService {
         return new CourseReviewsResponseDto(buildSummary(courseId), reviews);
     }
 
-    /** SCRUM-203: เขียนรีวิวใหม่ — เคยเรียนจริง + ยังไม่เคยรีวิววิชานี้ */
     @Transactional
     public ReviewDto createReview(String email, String courseCode, CreateReviewRequestDto request) {
         String comment = validateAndNormalize(request);
@@ -100,12 +107,10 @@ public class ReviewsService {
         try {
             return toDto(reviewRepository.saveAndFlush(review));
         } catch (DataIntegrityViolationException e) {
-            // กดส่งซ้ำพร้อมกัน — unique (user_id, course_id) ใน DB กันไว้
             throw new ReviewException(HttpStatus.CONFLICT, ReviewException.ALREADY_REVIEWED, "คุณรีวิววิชานี้ไปแล้ว");
         }
     }
 
-    /** SCRUM-203: ให้ FE รู้ว่าจะแสดงปุ่ม "เขียนรีวิว" ไหม (ใช้กติกาเดียวกับ createReview) */
     @Transactional(readOnly = true)
     public MyReviewStatusDto getMyReviewStatus(String email, String courseCode) {
         Course course = findCourse(courseCode);
@@ -117,26 +122,99 @@ public class ReviewsService {
         return new MyReviewStatusDto(reason == null, reason, myReview);
     }
 
-    /** null = รีวิวได้ */
+    @Transactional(readOnly = true)
+    public List<ReviewableCourseDto> getReviewableCourses(String email) {
+        User user = findUser(email);
+        RegistrarStudent student = findRegistrarStudent(user);
+        if (student == null) {
+            return List.of();
+        }
+
+        Set<Integer> reviewedCourseIds = reviewRepository.findByUserIdOrderByCreatedAtDescReviewIdDesc(user.getId())
+                .stream()
+                .map(review -> review.getCourse().getCourseId())
+                .collect(Collectors.toSet());
+
+        Map<Integer, RegistrarEnrollment> latestByCourse = new LinkedHashMap<>();
+        registrarEnrollmentRepository
+                .findRegisteredEnrollmentsBeforeTerm(student.getStudentId(), currentAcademicYear(student),
+                        student.getCurrentSemester())
+                .stream()
+                .filter(enrollment -> !reviewedCourseIds.contains(enrollment.getCourseId()))
+                .sorted(Comparator.comparing(RegistrarEnrollment::getAcademicYear)
+                        .thenComparing(RegistrarEnrollment::getSemester))
+                .forEach(enrollment -> latestByCourse.put(enrollment.getCourseId(), enrollment));
+        if (latestByCourse.isEmpty()) {
+            return List.of();
+        }
+
+        List<Long> courseIds = latestByCourse.keySet().stream().map(Integer::longValue).toList();
+        Map<Integer, Course> courses = courseRepository.findAllById(courseIds).stream()
+                .collect(Collectors.toMap(Course::getCourseId, Function.identity()));
+
+        return latestByCourse.values().stream()
+                .filter(enrollment -> courses.containsKey(enrollment.getCourseId()))
+                .sorted(Comparator.comparing(RegistrarEnrollment::getAcademicYear)
+                        .thenComparing(RegistrarEnrollment::getSemester)
+                        .reversed()
+                        .thenComparing(enrollment -> courses.get(enrollment.getCourseId()).getCourseCode()))
+                .map(enrollment -> {
+                    Course course = courses.get(enrollment.getCourseId());
+                    return new ReviewableCourseDto(
+                            course.getCourseId(),
+                            course.getCourseCode(),
+                            course.getNameTh(),
+                            course.getNameEn(),
+                            course.getCredits(),
+                            enrollment.getAcademicYear(),
+                            enrollment.getAcademicYear() - student.getAdmissionYear() + 1,
+                            enrollment.getSemester());
+                })
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public List<MyReviewDto> getMyReviews(String email) {
+        User user = findUser(email);
+        return reviewRepository.findByUserIdOrderByCreatedAtDescReviewIdDesc(user.getId()).stream()
+                .map(review -> new MyReviewDto(
+                        review.getReviewId(),
+                        review.getCourse().getCourseCode(),
+                        review.getCourse().getNameTh(),
+                        review.getCourse().getNameEn(),
+                        review.getOverallRating(),
+                        review.getDifficultyRating(),
+                        review.getWorkloadRating(),
+                        review.getComment(),
+                        review.getStatus().name(),
+                        review.getCreatedAt()))
+                .toList();
+    }
+
     private String ineligibleReason(User user, Course course) {
         if (reviewRepository.existsByUserIdAndCourse_CourseId(user.getId(), course.getCourseId())) {
             return ReviewException.ALREADY_REVIEWED;
         }
-        if (user.getStudentId() == null) {
-            return ReviewException.NOT_ENROLLED;
-        }
-        RegistrarStudent student = registrarStudentRepository.findByStudentId(user.getStudentId()).orElse(null);
+        RegistrarStudent student = findRegistrarStudent(user);
         if (student == null) {
             return ReviewException.NOT_ENROLLED;
         }
-        // ปีการศึกษาปัจจุบัน เช่น เข้า 2567 ตอนนี้ปี 3 → 2569 (นับเฉพาะเทอมก่อนหน้านี้)
-        int currentAcademicYear = student.getAdmissionYear() + student.getCurrentYear() - 1;
         boolean enrolled = registrarEnrollmentRepository.existsCompletedEnrollment(
-                user.getStudentId(), course.getCourseId(), currentAcademicYear, student.getCurrentSemester());
+                user.getStudentId(), course.getCourseId(), currentAcademicYear(student), student.getCurrentSemester());
         return enrolled ? null : ReviewException.NOT_ENROLLED;
     }
 
-    /** คืน comment ที่ trim แล้ว (ว่าง = null) */
+    private RegistrarStudent findRegistrarStudent(User user) {
+        if (user.getStudentId() == null) {
+            return null;
+        }
+        return registrarStudentRepository.findByStudentId(user.getStudentId()).orElse(null);
+    }
+
+    private static int currentAcademicYear(RegistrarStudent student) {
+        return student.getAdmissionYear() + student.getCurrentYear() - 1;
+    }
+
     private static String validateAndNormalize(CreateReviewRequestDto request) {
         if (request == null) {
             throw invalid("ไม่พบข้อมูลรีวิว");
@@ -208,7 +286,6 @@ public class ReviewsService {
         );
     }
 
-    /** latest = ใหม่สุดก่อน, highest / lowest = ตามคะแนนรวม แล้วใหม่สุดก่อน */
     private static Sort toSort(String sort) {
         Sort newestFirst = Sort.by(Sort.Order.desc("createdAt"), Sort.Order.desc("reviewId"));
         return switch (sort == null ? "latest" : sort.toLowerCase()) {

@@ -38,7 +38,7 @@ public interface ReviewRepository extends JpaRepository<Review, Integer> {
             SELECT AVG(overall_rating)
             FROM reviews
             WHERE course_id = :courseId
-              AND status = CAST('visible' AS review_status)
+              AND status = 'visible'
             """, nativeQuery = true)
     Double getAverageRatingByCourseId(@Param("courseId") Integer courseId);
 
@@ -51,6 +51,9 @@ public interface ReviewRepository extends JpaRepository<Review, Integer> {
 
     @EntityGraph(attributePaths = "user")
     Optional<Review> findByUserIdAndCourse_CourseId(Integer userId, Integer courseId);
+
+    @EntityGraph(attributePaths = "course")
+    List<Review> findByUserIdOrderByCreatedAtDescReviewIdDesc(Integer userId);
 
     @Query("""
             SELECT COUNT(r) AS reviewCount,
