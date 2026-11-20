@@ -13,10 +13,6 @@ public interface RegistrarEnrollmentRepository extends JpaRepository<RegistrarEn
 
     Optional<RegistrarEnrollment> findByEnrollmentIdAndStudentId(Integer enrollmentId, String studentId);
 
-    /**
-     * ลงทะเบียนวิชานี้แล้วและยังไม่ติด F/U (ผ่านแล้ว หรือกำลังเรียน/ยังไม่ออกเกรด)
-     * W และ F/U ไม่นับ เพราะต้องวางแผนลงใหม่ได้
-     */
     @Query(value = """
             SELECT EXISTS (
               SELECT 1
@@ -30,7 +26,6 @@ public interface RegistrarEnrollmentRepository extends JpaRepository<RegistrarEn
             """, nativeQuery = true)
     boolean existsActiveEnrollment(@Param("studentId") String studentId, @Param("courseId") Integer courseId);
 
-    /** SCRUM-189: รายวิชาที่ลงทะเบียนจริงในเทอมก่อนหน้า (ไม่รวม withdrawn) */
     @Query("""
             SELECT DISTINCT e.courseId FROM RegistrarEnrollment e
             WHERE e.studentId = :studentId
@@ -42,11 +37,21 @@ public interface RegistrarEnrollmentRepository extends JpaRepository<RegistrarEn
                                                     @Param("academicYear") Integer academicYear,
                                                     @Param("semester") Integer semester);
 
+    @Query("""
+            SELECT e FROM RegistrarEnrollment e
+            WHERE e.studentId = :studentId
+              AND e.status = 'registered'
+              AND (e.academicYear < :academicYear
+                   OR (e.academicYear = :academicYear AND e.semester < :semester))
+            """)
+    List<RegistrarEnrollment> findRegisteredEnrollmentsBeforeTerm(@Param("studentId") String studentId,
+                                                                 @Param("academicYear") Integer academicYear,
+                                                                 @Param("semester") Integer semester);
+
     default boolean existsCompletedEnrollment(String studentId, Integer courseId,
                                               Integer academicYear, Integer semester) {
         return findRegisteredCourseIdsBeforeTerm(studentId, academicYear, semester).contains(courseId);
     }
 
-    /** เคยลงวิชานี้แล้วหรือยัง (ทุกสถานะ รวม W) */
     boolean existsByStudentIdAndCourseId(String studentId, Integer courseId);
 }

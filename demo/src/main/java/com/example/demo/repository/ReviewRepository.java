@@ -16,7 +16,6 @@ import java.util.Optional;
 @Repository
 public interface ReviewRepository extends JpaRepository<Review, Integer> {
 
-    // นับเฉพาะรีวิวที่แสดงอยู่ (ใช้ในหน้า Track)
     @Query(value = """
             SELECT AVG(overall_rating)
             FROM reviews
@@ -25,15 +24,16 @@ public interface ReviewRepository extends JpaRepository<Review, Integer> {
             """, nativeQuery = true)
     Double getAverageRatingByCourseId(@Param("courseId") Integer courseId);
 
-    // SCRUM-206: รายการรีวิวของวิชา (ดึง user มาพร้อมกันเพื่อเอา displayName)
     @EntityGraph(attributePaths = "user")
     Page<Review> findByCourse_CourseIdAndStatus(Integer courseId, ReviewStatus status, Pageable pageable);
 
-    // SCRUM-203: 1 คน 1 รีวิวต่อวิชา (นับรวมรีวิวที่ถูกซ่อน)
     boolean existsByUserIdAndCourse_CourseId(Integer userId, Integer courseId);
 
     @EntityGraph(attributePaths = "user")
     Optional<Review> findByUserIdAndCourse_CourseId(Integer userId, Integer courseId);
+
+    @EntityGraph(attributePaths = "course")
+    List<Review> findByUserIdOrderByCreatedAtDescReviewIdDesc(Integer userId);
 
     @Query("""
             SELECT COUNT(r) AS reviewCount,
