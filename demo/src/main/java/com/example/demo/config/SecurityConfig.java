@@ -58,7 +58,6 @@ public class SecurityConfig {
         http
                 .securityMatchers(matchers -> matchers
                         .requestMatchers("/v1/plans/**", "/v1/saved-courses/**", "/v1/grades/**", "/v1/me/**")
-                        // SCRUM-203: เขียนรีวิว / เช็คสิทธิ์รีวิว ต้อง login (GET รายการรีวิวยัง public)
                         .requestMatchers(HttpMethod.POST, "/v1/courses/*/reviews")
                         .requestMatchers(HttpMethod.GET, "/v1/courses/*/reviews/me"))
                 .csrf(AbstractHttpConfigurer::disable)
@@ -79,10 +78,6 @@ public class SecurityConfig {
         return http.build();
     }
 
-    /**
-     * Verifies the Microsoft ID token sent by the frontend:
-     * signature (JWKS), exp/nbf, aud = our client ID, iss = a Microsoft tenant.
-     */
     @Bean
     @Qualifier("jwtDecoder")
     public JwtDecoder jwtDecoder(@Value("${azure.client-id}") String clientId) {

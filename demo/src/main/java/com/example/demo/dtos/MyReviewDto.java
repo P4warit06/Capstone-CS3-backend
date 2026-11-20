@@ -2,7 +2,6 @@ package com.example.demo.dtos;
 
 import java.time.LocalDateTime;
 
-/** SCRUM-244: รีวิวของตัวเอง (GET /v1/me/reviews) — status: visible | hidden */
 public record MyReviewDto(
         Integer reviewId,
         String courseCode,

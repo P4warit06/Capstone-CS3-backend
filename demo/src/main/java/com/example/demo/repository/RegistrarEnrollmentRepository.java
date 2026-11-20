@@ -13,10 +13,6 @@ public interface RegistrarEnrollmentRepository extends JpaRepository<RegistrarEn
 
     Optional<RegistrarEnrollment> findByEnrollmentIdAndStudentId(Integer enrollmentId, String studentId);
 
-    /**
-     * ลงทะเบียนวิชานี้แล้วและยังไม่ติด F/U (ผ่านแล้ว หรือกำลังเรียน/ยังไม่ออกเกรด)
-     * W และ F/U ไม่นับ เพราะต้องวางแผนลงใหม่ได้
-     */
     @Query(value = """
             SELECT EXISTS (
               SELECT 1
@@ -30,7 +26,6 @@ public interface RegistrarEnrollmentRepository extends JpaRepository<RegistrarEn
             """, nativeQuery = true)
     boolean existsActiveEnrollment(@Param("studentId") String studentId, @Param("courseId") Integer courseId);
 
-    /** SCRUM-189: รายวิชาที่ลงทะเบียนจริงในเทอมก่อนหน้า (ไม่รวม withdrawn) */
     @Query("""
             SELECT DISTINCT e.courseId FROM RegistrarEnrollment e
             WHERE e.studentId = :studentId
@@ -42,7 +37,6 @@ public interface RegistrarEnrollmentRepository extends JpaRepository<RegistrarEn
                                                     @Param("academicYear") Integer academicYear,
                                                     @Param("semester") Integer semester);
 
-    /** SCRUM-244: แถวลงทะเบียน (registered) ของเทอมก่อนหน้า — ใช้หาวิชาที่รีวิวได้ */
     @Query("""
             SELECT e FROM RegistrarEnrollment e
             WHERE e.studentId = :studentId
@@ -59,6 +53,5 @@ public interface RegistrarEnrollmentRepository extends JpaRepository<RegistrarEn
         return findRegisteredCourseIdsBeforeTerm(studentId, academicYear, semester).contains(courseId);
     }
 
-    /** เคยลงวิชานี้แล้วหรือยัง (ทุกสถานะ รวม W) */
     boolean existsByStudentIdAndCourseId(String studentId, Integer courseId);
 }

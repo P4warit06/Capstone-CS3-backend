@@ -107,7 +107,6 @@ public class ReviewsService {
         try {
             return toDto(reviewRepository.saveAndFlush(review));
         } catch (DataIntegrityViolationException e) {
-            // กดส่งซ้ำพร้อมกัน — unique (user_id, course_id) ใน DB กันไว้
             throw new ReviewException(HttpStatus.CONFLICT, ReviewException.ALREADY_REVIEWED, "คุณรีวิววิชานี้ไปแล้ว");
         }
     }

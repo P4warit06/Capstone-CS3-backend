@@ -31,7 +31,6 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
-/** SCRUM-244: วิชาที่รีวิวได้ + รีวิวของตัวเองในหน้าโปรไฟล์ */
 @ExtendWith(MockitoExtension.class)
 class ReviewsServiceMyReviewsTest {
 
@@ -54,7 +53,6 @@ class ReviewsServiceMyReviewsTest {
         user.setId(7);
         user.setStudentId("67130500001");
 
-        // เข้า 2567 ตอนนี้ปี 2 เทอม 1 → ปีการศึกษาปัจจุบัน 2568
         student = new RegistrarStudent();
         student.setStudentId("67130500001");
         student.setAdmissionYear(2567);
@@ -70,10 +68,8 @@ class ReviewsServiceMyReviewsTest {
 
         when(userRepository.findByEmailIgnoreCase(EMAIL)).thenReturn(Optional.of(user));
         when(registrarStudentRepository.findByStudentId("67130500001")).thenReturn(Optional.of(student));
-        // รีวิว GEN101 ไปแล้ว
         when(reviewRepository.findByUserIdOrderByCreatedAtDescReviewIdDesc(7))
                 .thenReturn(List.of(review(10, gen101, ReviewStatus.visible)));
-        // INT101 ลงซ้ำ 2 ครั้ง (ปี 1 เทอม 1 และ 2)
         when(registrarEnrollmentRepository.findRegisteredEnrollmentsBeforeTerm("67130500001", 2568, 1))
                 .thenReturn(List.of(
                         enrollment(1, 2567, 1),
@@ -85,7 +81,6 @@ class ReviewsServiceMyReviewsTest {
         List<ReviewableCourseDto> result = reviewsService.getReviewableCourses(EMAIL);
 
         assertEquals(2, result.size());
-        // เทอมล่าสุดก่อน: INT101 (ปี 1 เทอม 2) แล้ว INT102 (ปี 1 เทอม 1)
         assertEquals("INT101", result.get(0).courseCode());
         assertEquals(1, result.get(0).studyYear());
         assertEquals(2, result.get(0).semester());

@@ -12,7 +12,6 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 
-/** SCRUM-244: ข้อมูลรีวิวของผู้ใช้ที่ login อยู่ (ดึงจาก token เท่านั้น ไม่รับ user id จาก query) */
 @RestController
 @RequestMapping("/v1/me")
 @RequiredArgsConstructor
