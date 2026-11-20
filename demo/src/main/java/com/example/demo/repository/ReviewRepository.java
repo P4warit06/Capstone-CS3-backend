@@ -35,6 +35,10 @@ public interface ReviewRepository extends JpaRepository<Review, Integer> {
     @EntityGraph(attributePaths = "user")
     Optional<Review> findByUserIdAndCourse_CourseId(Integer userId, Integer courseId);
 
+    // SCRUM-244: รีวิวทั้งหมดของผู้ใช้ (รวมที่ถูกซ่อน) เรียงล่าสุดก่อน
+    @EntityGraph(attributePaths = "course")
+    List<Review> findByUserIdOrderByCreatedAtDescReviewIdDesc(Integer userId);
+
     @Query("""
             SELECT COUNT(r) AS reviewCount,
                    AVG(r.overallRating) AS averageRating,

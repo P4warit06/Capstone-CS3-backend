@@ -42,6 +42,18 @@ public interface RegistrarEnrollmentRepository extends JpaRepository<RegistrarEn
                                                     @Param("academicYear") Integer academicYear,
                                                     @Param("semester") Integer semester);
 
+    /** SCRUM-244: แถวลงทะเบียน (registered) ของเทอมก่อนหน้า — ใช้หาวิชาที่รีวิวได้ */
+    @Query("""
+            SELECT e FROM RegistrarEnrollment e
+            WHERE e.studentId = :studentId
+              AND e.status = 'registered'
+              AND (e.academicYear < :academicYear
+                   OR (e.academicYear = :academicYear AND e.semester < :semester))
+            """)
+    List<RegistrarEnrollment> findRegisteredEnrollmentsBeforeTerm(@Param("studentId") String studentId,
+                                                                 @Param("academicYear") Integer academicYear,
+                                                                 @Param("semester") Integer semester);
+
     default boolean existsCompletedEnrollment(String studentId, Integer courseId,
                                               Integer academicYear, Integer semester) {
         return findRegisteredCourseIdsBeforeTerm(studentId, academicYear, semester).contains(courseId);
