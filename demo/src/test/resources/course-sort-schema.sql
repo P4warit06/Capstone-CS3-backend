@@ -1,0 +1,2 @@
+CREATE DOMAIN IF NOT EXISTS USER_ROLE AS ENUM('student', 'staff', 'admin');
+CREATE DOMAIN IF NOT EXISTS REVIEW_STATUS AS ENUM('visible', 'hidden');

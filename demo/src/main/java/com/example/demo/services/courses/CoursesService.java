@@ -1,19 +1,21 @@
 package com.example.demo.services.courses;
 
+import com.example.demo.dtos.CategoryDto;
 import com.example.demo.dtos.CourseDetailDto;
-import com.example.demo.exceptions.CourseNotFoundException;
-import org.springframework.stereotype.Service;
-import org.springframework.beans.factory.annotation.Autowired;
-import java.util.*;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
-import com.example.demo.entity.Course;
+import com.example.demo.dtos.CourseDto;
 import com.example.demo.entity.Category;
+import com.example.demo.entity.Course;
 import com.example.demo.entity.ReviewStatus;
+import com.example.demo.exceptions.CourseNotFoundException;
 import com.example.demo.repository.CourseRepository;
 import com.example.demo.repository.ReviewRepository;
-import com.example.demo.dtos.CourseDto;
-import com.example.demo.dtos.CategoryDto;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.stereotype.Service;
+
+import java.util.*;
 
 @Service
 public class CoursesService {
@@ -25,12 +27,12 @@ public class CoursesService {
     private ReviewRepository reviewRepository;
 
     public Page<CourseDto> getAllCourses(Pageable pageable) {
-        return getAllCourses(null, pageable);
+        return getAllCourses(null, null, "courseCode,asc", pageable);
     }
 
     /** q ว่าง = ทั้งหมด, มีค่า = ค้นจากรหัส / ชื่อไทย / ชื่ออังกฤษ */
     public Page<CourseDto> getAllCourses(String q, Pageable pageable) {
-        return getAllCourses(q, null, pageable);
+        return getAllCourses(q, null, "courseCode,asc", pageable);
     }
 
     /**
@@ -38,17 +40,17 @@ public class CoursesService {
      * ว่าง/null = ไม่ filter หมวด
      */
     public Page<CourseDto> getAllCourses(String q, String category, Pageable pageable) {
-        boolean hasQuery = q != null && !q.isBlank();
-        List<String> codes = parseCategoryCodes(category);
+        return getAllCourses(q, category, "courseCode,asc", pageable);
+    }
 
-        Page<Course> coursePage;
-        if (!codes.isEmpty()) {
-            coursePage = courseRepository.searchByCategoryCodes(hasQuery ? q.trim() : "", codes, pageable);
-        } else if (hasQuery) {
-            coursePage = courseRepository.search(q.trim(), pageable);
-        } else {
-            coursePage = courseRepository.findAll(pageable);
-        }
+    public Page<CourseDto> getAllCourses(String q, String category, String sort, Pageable pageable) {
+        boolean hasQuery = q != null && !q.isBlank();
+        String query = hasQuery ? q.trim() : "";
+        List<String> codes = parseCategoryCodes(category);
+        List<String> queryCodes = codes.isEmpty() ? List.of("__NO_CATEGORY__") : codes;
+        Pageable unsortedPageable = PageRequest.of(pageable.getPageNumber(), pageable.getPageSize());
+        Page<Course> coursePage = courseRepository.findCourses(
+                query, hasQuery, !codes.isEmpty(), queryCodes, sort, ReviewStatus.visible, unsortedPageable);
         Map<Integer, ReviewRepository.CourseReviewStatsView> reviewStatsByCourseId = getReviewStats(coursePage.getContent());
         return coursePage.map(course -> mapToCourseDto(course, reviewStatsByCourseId.get(course.getCourseId())));
     }
